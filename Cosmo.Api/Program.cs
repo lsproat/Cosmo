@@ -1,6 +1,7 @@
+using Cosmo.Application;
 using Cosmo.Application.Interfaces;
 using Cosmo.Infrastructure.Configuration;
-using Cosmo.Infrastructure.LLMs;
+using Cosmo.Infrastructure.LLMs.Ollama;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,6 +22,7 @@ builder.Services
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddApplication();
 
 builder.Services.AddHttpClient<IModelProvider, OllamaModelProvider>((services, client) =>
 {
@@ -37,9 +39,7 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();
