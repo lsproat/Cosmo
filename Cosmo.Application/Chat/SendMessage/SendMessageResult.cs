@@ -1,3 +1,3 @@
-﻿namespace Cosmo.Application.Chat;
+﻿namespace Cosmo.Application.Chat.SendMessage;
 
 public sealed record SendMessageResult(string Message);

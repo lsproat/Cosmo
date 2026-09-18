@@ -1,6 +1,11 @@
 @Cosmo.Api_HostAddress = http://localhost:5203
 
-GET {{Cosmo.Api_HostAddress}}/weatherforecast/
+POST {{Cosmo.Api_HostAddress}}/api/chat/sendMessage
 Accept: application/json
+Content-Type: application/json
+
+{
+  "message": "Hello, how are you?"
+}
 
 ###

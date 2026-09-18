@@ -1,8 +1,9 @@
-﻿using Cosmo.Application.Chat;
-using Cosmo.Application.Interfaces;
+﻿using Cosmo.Application.Abstractions;
+using Cosmo.Application.Exceptions;
 using Cosmo.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 namespace Cosmo.Infrastructure.LLMs.Ollama;
 
@@ -12,7 +13,7 @@ public class OllamaModelProvider(
 {
     private readonly OllamaOptions _options = options.Value;
 
-    public async Task<SendMessageResult> SendMessageAsync(string message, CancellationToken cancellationToken)
+    public async Task<ModelResponse> SendMessageAsync(string message, CancellationToken cancellationToken)
     {
         var request = new OllamaChatRequest(
            Model: _options.Model,
@@ -23,17 +24,33 @@ public class OllamaModelProvider(
            // Todo: Add support for streaming responses
            Stream: false);
 
-        var response = await httpClient.PostAsJsonAsync(
+        using var response = await httpClient.PostAsJsonAsync(
             "/api/chat",
             request,
             cancellationToken);
-
         response.EnsureSuccessStatusCode();
 
-        var result = await response.Content
-            .ReadFromJsonAsync<OllamaChatResponse>(
-                cancellationToken: cancellationToken);
+        OllamaChatResponse? result;
+        try
+        {
+            result = await response.Content
+                .ReadFromJsonAsync<OllamaChatResponse>(
+                    cancellationToken: cancellationToken);
+        }
+        catch (JsonException exception)
+        {
+            throw new ModelProviderResponseException(
+                "Ollama returned an empty or invalid JSON response.",
+                exception);
+        }
 
-        return new SendMessageResult(result!.Message.Content);
+        var content = result?.Message?.Content;
+        if (string.IsNullOrWhiteSpace(content))
+        {
+            throw new ModelProviderResponseException(
+                "Ollama returned no message content.");
+        }
+
+        return new ModelResponse(content);
     }
 }
