@@ -1,4 +1,5 @@
 ﻿using Cosmo.Application.Abstractions;
+using Cosmo.Domain.Conversations;
 using MediatR;
 
 namespace Cosmo.Application.Chat.SendMessage;
@@ -11,7 +12,11 @@ public sealed class SendMessageHandler(IModelProvider modelProvider) : IRequestH
         CancellationToken cancellationToken)
     {
         var response = await modelProvider.SendMessageAsync(
-           request.Message,
+           [new ConversationMessage()
+            {
+                Role = ConversationMessageRole.User,
+                Content = request.Message
+            }],
            cancellationToken);
 
         return new SendMessageResult(response.Content);

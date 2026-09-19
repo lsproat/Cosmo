@@ -1,7 +1,8 @@
 ﻿using FluentValidation;
 
 namespace Cosmo.Application.Chat.SendMessage;
-public sealed class SendMessageValidator: AbstractValidator<SendMessageCommand>
+
+public sealed class SendMessageValidator : AbstractValidator<SendMessageCommand>
 {
     public SendMessageValidator()
     {

@@ -3,6 +3,7 @@ using Cosmo.Application;
 using Cosmo.Application.Abstractions;
 using Cosmo.Application.Exceptions;
 using Cosmo.Infrastructure.Configuration;
+using Cosmo.Infrastructure.Conversations;
 using Cosmo.Infrastructure.LLMs.Ollama;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
@@ -42,6 +43,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 
+builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
 builder.Services.AddHttpClient<IModelProvider, OllamaModelProvider>((services, client) =>
 {
     var options = services.GetRequiredService<IOptions<OllamaOptions>>().Value;

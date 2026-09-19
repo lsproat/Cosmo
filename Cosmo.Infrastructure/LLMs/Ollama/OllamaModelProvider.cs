@@ -1,5 +1,6 @@
 ﻿using Cosmo.Application.Abstractions;
 using Cosmo.Application.Exceptions;
+using Cosmo.Domain.Conversations;
 using Cosmo.Infrastructure.Configuration;
 using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
@@ -13,14 +14,14 @@ public class OllamaModelProvider(
 {
     private readonly OllamaOptions _options = options.Value;
 
-    public async Task<ModelResponse> SendMessageAsync(string message, CancellationToken cancellationToken)
+    public async Task<ModelResponse> SendMessageAsync(
+        IReadOnlyList<ConversationMessage> messages,
+        CancellationToken cancellationToken)
     {
         var request = new OllamaChatRequest(
            Model: _options.Model,
-           Messages:
-           [
-               new OllamaMessage("user", message)
-           ],
+           Messages: [.. messages.Select(x => 
+                        new OllamaMessage(GetOllamaRole(x.Role), x.Content))],
            // Todo: Add support for streaming responses
            Stream: false);
 
@@ -53,4 +54,13 @@ public class OllamaModelProvider(
 
         return new ModelResponse(content);
     }
+
+    private static string GetOllamaRole(ConversationMessageRole role) =>
+    role switch
+    {
+        ConversationMessageRole.System => "system",
+        ConversationMessageRole.User => "user",
+        ConversationMessageRole.Assistant => "assistant",
+        _ => throw new ArgumentOutOfRangeException(nameof(role), role, null)
+    };
 }
