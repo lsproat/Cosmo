@@ -28,7 +28,7 @@ public static class ServiceCollectionExtensions
             .Bind(configuration.GetSection(CosmoOptions.SectionName))
             .Validate(
                 options => !string.IsNullOrWhiteSpace(options.BaseSystemPrompt),
-                "Cosmo:SystemPrompt must not be empty or whitespace.")
+                "Cosmo:BaseSystemPrompt must not be empty or whitespace.")
             .ValidateOnStart();
 
         return services;

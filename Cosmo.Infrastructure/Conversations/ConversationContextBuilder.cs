@@ -5,16 +5,25 @@ using Microsoft.Extensions.Options;
 
 namespace Cosmo.Infrastructure.Conversations;
 
-public sealed class ConversationContextBuilder(IOptions<CosmoOptions> options) : IConversationContextBuilder
+public sealed class ConversationContextBuilder(
+    IOptions<CosmoOptions> options,
+    TimeProvider timeProvider) : IConversationContextBuilder
 {
     private readonly CosmoOptions _options = options.Value;
     public ConversationMessage[] Build(Conversation conversation, CancellationToken cancellationToken)
     {
-        return
-                [new(
-                ConversationMessageRole.System,
-                _options.BaseSystemPrompt),
-            .. conversation.Messages
+        var currDateTimeOffset = timeProvider.GetLocalNow();
+
+        var systemContext = $"""
+            {_options.BaseSystemPrompt}
+
+            Current date: {currDateTimeOffset:MMMM d, yyyy}
+            Current time: {currDateTimeOffset:h:mm tt}
+            """;
+        return [new(
+                    ConversationMessageRole.System,
+                    systemContext),
+                .. conversation.Messages
                 ];
     }
 }

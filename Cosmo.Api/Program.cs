@@ -30,6 +30,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IConversationContextBuilder, ConversationContextBuilder>();
 builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
 builder.Services.AddHttpClient<IModelProvider, OllamaModelProvider>((services, client) =>
