@@ -12,11 +12,9 @@ public sealed class SendMessageHandler(IModelProvider modelProvider) : IRequestH
         CancellationToken cancellationToken)
     {
         var response = await modelProvider.SendMessageAsync(
-           [new ConversationMessage()
-            {
-                Role = ConversationMessageRole.User,
-                Content = request.Message
-            }],
+           [new ConversationMessage(
+               ConversationMessageRole.User,
+               request.Message)],
            cancellationToken);
 
         return new SendMessageResult(response.Content);

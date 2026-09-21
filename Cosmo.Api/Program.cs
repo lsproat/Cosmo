@@ -1,3 +1,4 @@
+using Cosmo.Api.Configuration;
 using Cosmo.Api.Exceptions;
 using Cosmo.Application;
 using Cosmo.Application.Abstractions;
@@ -13,21 +14,7 @@ builder.Configuration
     .AddJsonFile($"localsettings.json", optional: true)
     .AddEnvironmentVariables();
 
-// Todo: Potentially pull out config validation into a separate class to keep Program.cs clean.
-builder.Services
-    .AddOptions<OllamaOptions>()
-    .Bind(builder.Configuration.GetSection(OllamaOptions.SectionName))
-    .Validate(
-        options => Uri.TryCreate(
-            options.BaseUrl,
-            UriKind.Absolute,
-            out var uri)
-            && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps),
-        "Ollama:BaseUrl must be a valid absolute HTTP or HTTPS URL.")
-    .Validate(
-        options => !string.IsNullOrWhiteSpace(options.Model),
-        "Ollama:Model must not be empty or whitespace.")
-    .ValidateOnStart();
+builder.Services.AddCosmoConfiguration(builder.Configuration);
 
 builder.Services.AddProblemDetails(options =>
 {
@@ -43,6 +30,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 
+builder.Services.AddSingleton<IConversationContextBuilder, ConversationContextBuilder>();
 builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
 builder.Services.AddHttpClient<IModelProvider, OllamaModelProvider>((services, client) =>
 {

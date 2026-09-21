@@ -8,12 +8,13 @@ public class Conversation
 
     public List<ConversationMessage> Messages { get; } = [];
 
+    public Conversation(string firstMessage)
+    {
+        AddMessage(firstMessage, ConversationMessageRole.User);
+    }
+
     public void AddMessage(string message, ConversationMessageRole role)
     {
-        Messages.Add(new ConversationMessage()
-        {
-            Role = role,
-            Content = message
-        });
+        Messages.Add(new ConversationMessage(role, message));
     }
 }
