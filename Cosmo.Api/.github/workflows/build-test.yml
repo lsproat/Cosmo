@@ -1,0 +1,38 @@
+name: Build and Test
+
+on:
+  pull_request:
+    branches:
+      - main
+
+  push:
+    branches:
+      - main
+
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore Cosmo.sln
+
+      - name: Build
+        run: dotnet build Cosmo.sln --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test Cosmo.sln --configuration Release --no-build --verbosity normal
