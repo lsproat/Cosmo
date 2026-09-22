@@ -5,6 +5,7 @@ using MediatR;
 namespace Cosmo.Application.Chat.SendMessage;
 
 public record SendMessageCommand(string Message) : IRequest<SendMessageResult>;
+
 public sealed class SendMessageHandler(IModelProvider modelProvider) : IRequestHandler<SendMessageCommand, SendMessageResult>
 {
     public async Task<SendMessageResult> Handle(

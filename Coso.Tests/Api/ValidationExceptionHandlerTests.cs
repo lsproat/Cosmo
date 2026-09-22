@@ -51,11 +51,13 @@ public class ValidationExceptionHandlerTests
     private sealed class RecordingProblemDetailsService(bool canWrite) : IProblemDetailsService
     {
         public ProblemDetailsContext? Context { get; private set; }
+
         public ValueTask WriteAsync(ProblemDetailsContext context)
         {
             Context = context;
             return ValueTask.CompletedTask;
         }
+
         public ValueTask<bool> TryWriteAsync(ProblemDetailsContext context)
         {
             Context = context;

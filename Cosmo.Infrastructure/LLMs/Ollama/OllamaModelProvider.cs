@@ -20,7 +20,7 @@ public class OllamaModelProvider(
     {
         var request = new OllamaChatRequest(
            Model: _options.Model,
-           Messages: [.. messages.Select(x => 
+           Messages: [.. messages.Select(x =>
                         new OllamaMessage(GetOllamaRole(x.Role), x.Content))],
            // Todo: Add support for streaming responses
            Stream: false);

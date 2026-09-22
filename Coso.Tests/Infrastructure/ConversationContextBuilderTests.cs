@@ -1,9 +1,9 @@
-using System.Globalization;
 using Cosmo.Domain.Conversations;
 using Cosmo.Infrastructure.Configuration;
 using Cosmo.Infrastructure.Conversations;
 using Cosmo.Tests.Support;
 using Microsoft.Extensions.Options;
+using System.Globalization;
 
 namespace Cosmo.Tests.Infrastructure;
 

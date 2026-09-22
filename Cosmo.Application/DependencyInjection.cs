@@ -3,6 +3,7 @@ using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace Cosmo.Application;
+
 public static class DependencyInjection
 {
     public static IServiceCollection AddApplication(
@@ -11,7 +12,8 @@ public static class DependencyInjection
         var assembly = typeof(DependencyInjection).Assembly;
 
         services.AddValidatorsFromAssembly(assembly);
-        services.AddMediatR(cfg => {
+        services.AddMediatR(cfg =>
+        {
             cfg.RegisterServicesFromAssembly(assembly);
             cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
         });

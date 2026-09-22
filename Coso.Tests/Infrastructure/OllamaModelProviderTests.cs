@@ -1,11 +1,11 @@
-using System.Net;
-using System.Text;
-using System.Text.Json;
 using Cosmo.Application.Exceptions;
 using Cosmo.Domain.Conversations;
 using Cosmo.Infrastructure.Configuration;
 using Cosmo.Infrastructure.LLMs.Ollama;
 using Microsoft.Extensions.Options;
+using System.Net;
+using System.Text;
+using System.Text.Json;
 
 namespace Cosmo.Tests.Infrastructure;
 
@@ -137,7 +137,8 @@ public class OllamaModelProviderTests
 
     private static OllamaModelProvider CreateProvider(HttpClient client) => new(client, Options.Create(new OllamaOptions
     {
-        BaseUrl = "https://ollama.invalid", Model = "test-model:small"
+        BaseUrl = "https://ollama.invalid",
+        Model = "test-model:small"
     }));
 
     private static HttpResponseMessage JsonResponse(string body) => new(HttpStatusCode.OK)
@@ -148,6 +149,7 @@ public class OllamaModelProviderTests
     private sealed class StubHttpHandler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> send) : HttpMessageHandler
     {
         public int Calls { get; private set; }
+
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             Calls++;

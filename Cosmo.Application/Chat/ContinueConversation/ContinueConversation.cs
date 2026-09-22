@@ -5,6 +5,7 @@ using MediatR;
 namespace Cosmo.Application.Chat.ContinueConversation;
 
 public record ContinueConversationCommand(Guid ConversationId, string Message) : IRequest<ContinueConversationResult>;
+
 public sealed class ContinueConversationHandler(
     IModelProvider modelProvider,
     IConversationRepository conversationRepository,
@@ -16,10 +17,10 @@ public sealed class ContinueConversationHandler(
         CancellationToken cancellationToken)
     {
         // Todo: Customize exception type for not found. Maybe a NotFoundException.
-        var conversation = conversationRepository.Get(request.ConversationId) 
+        var conversation = conversationRepository.Get(request.ConversationId)
             ?? throw new ArgumentException($"Conversation with ID {request.ConversationId} not found.");
 
-        // Todo: Handle failed message send. Maybe undo message add. 
+        // Todo: Handle failed message send. Maybe undo message add.
         conversation.AddMessage(request.Message, ConversationMessageRole.User);
 
         var context = conversationContextBuilder.Build(conversation, cancellationToken);

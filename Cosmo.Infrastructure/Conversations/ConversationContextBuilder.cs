@@ -10,6 +10,7 @@ public sealed class ConversationContextBuilder(
     TimeProvider timeProvider) : IConversationContextBuilder
 {
     private readonly CosmoOptions _options = options.Value;
+
     public ConversationMessage[] Build(Conversation conversation, CancellationToken cancellationToken)
     {
         var currDateTimeOffset = timeProvider.GetLocalNow();

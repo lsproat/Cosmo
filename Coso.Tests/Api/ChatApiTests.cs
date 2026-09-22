@@ -1,7 +1,3 @@
-using System.Net;
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
 using Cosmo.Api.Chat;
 using Cosmo.Application.Abstractions;
 using Cosmo.Application.Exceptions;
@@ -14,6 +10,10 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Logging;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 
 namespace Cosmo.Tests.Api;
 
@@ -199,7 +199,8 @@ public class ChatApiTests
 
         public HttpClient CreateHttpsClient() => CreateClient(new WebApplicationFactoryClientOptions
         {
-            BaseAddress = new Uri("https://localhost"), AllowAutoRedirect = false
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false
         });
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)

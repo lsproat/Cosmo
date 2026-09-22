@@ -29,7 +29,6 @@ public class ChatController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-
     [HttpPost("conversation/{conversationId}")]
     [RequestSizeLimit(512 * 1024)]
     public async Task<ActionResult<ContinueConversationResult>> ContinueConversation(Guid conversationId, ContinueConversationRequest request, CancellationToken cancellationToken)

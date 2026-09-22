@@ -4,5 +4,5 @@ namespace Cosmo.Application.Abstractions;
 
 public interface IConversationContextBuilder
 {
-    ConversationMessage[] Build(Conversation conversation,CancellationToken cancellationToken);
+    ConversationMessage[] Build(Conversation conversation, CancellationToken cancellationToken);
 }
