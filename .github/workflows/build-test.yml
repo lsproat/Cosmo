@@ -29,10 +29,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore dependencies
-        run: dotnet restore Cosmo.sln
+        run: dotnet restore Cosmo.slnx
 
       - name: Build
-        run: dotnet build Cosmo.sln --configuration Release --no-restore
+        run: dotnet build Cosmo.slnx --configuration Release --no-restore
 
       - name: Run tests
-        run: dotnet test Cosmo.sln --configuration Release --no-build --verbosity normal
+        run: dotnet test Cosmo.slnx --configuration Release --no-build --verbosity normal
