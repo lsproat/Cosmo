@@ -14,11 +14,11 @@ public sealed class ValidationBehavior<TRequest, TResponse>(
         RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
-        var context = new ValidationContext<TRequest>(request);
         var failures = new List<ValidationFailure>();
 
         foreach (var validator in validators)
         {
+            var context = new ValidationContext<TRequest>(request);
             var result = await validator.ValidateAsync(context, cancellationToken);
 
             failures.AddRange(result.Errors);
