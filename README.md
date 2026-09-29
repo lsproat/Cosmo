@@ -1,147 +1,233 @@
-## Roadmap / Design Goals
+# Cosmo
 
-This project is intended to grow beyond a simple wrapper around an LLM API. The long-term goal is to build a model-agnostic AI orchestration layer that owns conversation state, context management, memory, routing, and tool execution independently of any individual model provider.
+**Cosmo is a model-agnostic .NET orchestration layer for local and cloud LLMs.**
 
-### Conversation Management
+The project is designed to keep application-level AI concerns—such as conversation state, context construction, token budgeting, memory, routing, and tool execution—independent of any individual model provider.
 
-- Persist conversations and messages independently of the underlying LLM provider.
-- Create conversations lazily when the first message is sent rather than when a user opens a new chat.
-- Allow a single request to create a conversation and send its first message.
-- Maintain stable conversation IDs at the orchestration layer.
-- Support retrieving and continuing existing conversations.
-- Keep the conversation model independent of provider-specific message formats.
-- Allow a conversation to move between different model providers without losing its history.
+Ollama is currently the first implemented provider, allowing Cosmo to work with locally hosted models while the broader orchestration architecture continues to evolve.
 
-### Context Management
+> **Status:** Active development. Core chat orchestration, conversation management, provider abstraction, context construction and token budgeting, Ollama integration, automated testing, and CI are implemented.
 
-- Introduce a dedicated context builder responsible for determining what information should be sent to a model for each request.
-- Avoid indefinitely resending the entire raw conversation as conversations grow.
-- Support configurable context-window limits based on the selected model.
-- Truncate or summarize older conversation history when necessary.
-- Preserve the most relevant recent messages while intelligently compressing older context.
-- Keep context-building logic separate from individual model-provider implementations.
-- Eventually support relevance-based retrieval rather than relying exclusively on chronological history.
+---
 
-### Long-Term Memory
+## Why Cosmo?
 
-- Build a persistent memory layer that exists independently of conversation history.
-- Extract durable information from conversations that may be useful in future interactions.
-- Distinguish short-term conversational context from long-term user or system memory.
-- Retrieve relevant memories dynamically when constructing model context.
-- Explore embedding/vector-based memory retrieval.
-- Experiment with periodic memory consolidation, including a possible daily process that reviews recent conversations and decides what information should be retained, consolidated, updated, or discarded.
-- Allow memory to remain useful when switching between local and cloud models.
+Many LLM integrations begin as thin wrappers around a provider API. As an application grows, however, concerns such as conversation history, context-window management, memory, routing, tools, and provider-specific behavior quickly become application responsibilities.
 
-### Model-Agnostic Provider Architecture
+Cosmo explores an architecture where those responsibilities belong to the orchestration layer rather than to Ollama or any future cloud provider.
 
-- Support multiple LLM providers behind a common internal abstraction.
-- Keep application and domain logic independent of Ollama-specific or cloud-provider-specific APIs.
-- Add additional local and cloud providers without requiring changes to conversation or memory logic.
-- Normalize provider-specific request and response formats into shared application models.
-- Support different model capabilities, token limits, and configuration requirements.
-- Allow the active model or provider to be changed without migrating conversation data.
+The goal is to allow conversations and application behavior to remain portable across models and providers while keeping provider-specific integrations behind clearly defined boundaries.
 
-### Intelligent Model Routing
+---
 
-- Add a routing layer capable of selecting an appropriate provider/model for a request.
-- Route inexpensive or privacy-sensitive requests to local models when appropriate.
-- Allow more demanding tasks to be routed to more capable cloud models.
-- Consider model capability, latency, cost, privacy, availability, and context-window requirements when routing.
-- Support explicit user/model selection in addition to automatic routing.
-- Eventually support fallback behavior when a preferred provider is unavailable.
+## Current Capabilities
 
-### Local Model Support
+### Implemented
 
-- Continue expanding first-class Ollama support.
-- Handle models that have unloaded from memory after inactivity.
-- Account for longer initial response times when a model must be loaded.
-- Explore model warm-up/preloading behavior.
-- Expose provider health and availability information.
-- Keep local inference usable without requiring internet connectivity where possible.
+- Model-agnostic provider abstraction
+- Ollama model provider
+- Application-owned conversation state
+- Lazy conversation creation when the first message is sent
+- Stable conversation IDs independent of the model provider
+- Provider-independent conversation message models
+- Dedicated conversation context builder
+- Configurable context-window and output-token budgeting
+- Conversation-history trimming when requests exceed the available input budget
+- Base system prompt and runtime context support
+- Model-specific token counting
+- Automated tests
+- GitHub Actions build and test validation
+- Centralized API error handling
+- OpenAPI support
 
-### Tools and MCP
+### Planned
 
-- Add tool/function calling without coupling tools to a particular LLM provider.
-- Explore Model Context Protocol (MCP) integration.
-- Allow models to discover and invoke approved external capabilities through the orchestration layer.
-- Keep authorization and execution of tools controlled by the gateway rather than directly by the model.
-- Eventually integrate services such as Home Assistant and other personal infrastructure.
+- Durable conversation persistence
+- Conversation retrieval/query endpoints
+- Conversation summarization and long-term memory
+- Additional local and cloud model providers
+- Intelligent model routing and fallback
+- Tool/function calling and MCP integration
+- Structured observability and provider health checks
+- Containerized deployment
+- Authentication and authorization
 
-### API and Application Architecture
+---
 
-- Continue using CQRS/MediatR to keep API transport concerns separate from application behavior.
-- Maintain clear boundaries between API, Application, Domain, and Infrastructure layers.
-- Add request validation through FluentValidation and MediatR pipeline behaviors.
-- Standardize application errors and API error responses.
-- Keep HTTP request DTOs separate from application commands where appropriate.
-- Add query paths for retrieving conversations, messages, models, and provider information.
+## Architecture
 
-### Persistence
+Cosmo is organized as a layered .NET solution:
 
-- Add durable storage for conversations and messages.
-- Define persistence models without leaking database concerns into the domain/application layers.
-- Add storage for long-term memories and generated conversation summaries.
-- Design persistence so additional metadata can be added later without tightly coupling it to a specific model.
-- Consider caching where it meaningfully improves context retrieval or provider performance.
+```text
+Cosmo.Api
+    HTTP endpoints, API configuration, OpenAPI, and error handling
 
-### Performance
+Cosmo.Application
+    Commands, handlers, orchestration, context construction, and abstractions
 
-- Treat performance as a first-class concern rather than an afterthought.
-- Minimize unnecessary allocations and transformations in frequently executed message/context paths.
-- Avoid repeatedly converting or normalizing values that can be represented more efficiently internally.
-- Use appropriate immutable/read-only structures for message data where practical.
-- Measure context-building and provider latency.
-- Add caching only where measurements justify it.
-- Track local model load time separately from inference time.
+Cosmo.Domain
+    Conversations, messages, and core domain behavior
 
-### Reliability and Resilience
+Cosmo.Infrastructure
+    Ollama integration, repositories, tokenization, and external services
 
-- Add provider-specific timeout policies.
-- Distinguish model-loading delays from failed requests.
-- Add cancellation support throughout the request pipeline.
-- Introduce retry behavior only for operations that are safe to retry.
-- Add provider health checks.
-- Support graceful degradation and eventual provider fallback.
-- Ensure failures from one provider do not leak provider-specific details throughout the application.
+Cosmo.Tests
+    Automated application and infrastructure tests
+```
 
-### Observability
+The core architectural principle is:
 
-- Add structured logging throughout the orchestration pipeline.
-- Capture model/provider selection, request duration, context size, and response timing.
-- Track token usage where providers expose it.
-- Add metrics around context construction, model loading, inference, failures, and routing.
-- Add distributed tracing as the system begins interacting with more external services.
-- Make routing and context decisions inspectable enough to understand why the system behaved a certain way.
+> **Cosmo owns orchestration. Providers own model communication.**
 
-### Security and Privacy
+Conversation state, context construction, token budgeting, and future memory/routing logic belong to Cosmo. Model providers are responsible for translating normalized application requests into the format expected by the underlying model runtime.
 
-- Add authentication/authorization before exposing the gateway beyond trusted development environments.
-- Keep provider credentials and API keys outside source control.
-- Validate configuration at application startup.
-- Restrict access to locally hosted Ollama endpoints.
-- Treat stored conversations and memories as sensitive application data.
-- Ensure tool execution is explicitly authorized rather than allowing unrestricted model-driven actions.
-- Eventually support different privacy policies for local versus cloud inference.
+The application uses MediatR/CQRS to keep HTTP transport concerns separate from application behavior.
 
-### Testing
+---
 
-- Add unit tests for application handlers, validation, routing, and context-building logic.
-- Add integration tests for persistence.
-- Add provider contract tests so different LLM implementations behave consistently from the application's perspective.
-- Mock model providers so orchestration behavior can be tested without running an LLM.
-- Add end-to-end tests for conversation creation and continuation flows.
+## Conversation and Context Management
 
-### Deployment and Operations
+A conversation is created lazily when its first message is sent, so creating a conversation and sending the initial message can happen in a single request.
 
-- Containerize the application for deployment to the local Linux server.
-- Support environment-specific configuration for development and production.
-- Add CI/CD for build, test, and deployment.
-- Add startup configuration validation so missing required settings fail clearly.
-- Provide health endpoints for the gateway and configured providers.
-- Eventually make deployment reproducible enough to run the gateway on different machines without substantial manual setup.
+Cosmo owns the conversation history rather than relying on the model provider to maintain state.
+
+Before a model is invoked, the context builder determines what information can fit within the configured model context window.
+
+Conceptually:
+
+```text
+Input Token Limit =
+    Model Context Window
+    - Reserved Output Tokens
+```
+
+The context builder currently supports:
+
+- base system instructions
+- runtime context such as the current date and time
+- conversation history
+- model-specific token counting
+- configurable token budgets
+- trimming older messages when the available input budget is exceeded
+
+Future work will extend this system with conversation summarization, long-term memory, and relevance-based retrieval.
+
+---
+
+## Model Providers
+
+Model providers implement a shared application abstraction so the rest of Cosmo does not depend directly on Ollama-specific request or response types.
+
+Ollama is currently the only implemented provider.
+
+The longer-term goal is to support additional local and cloud providers without requiring changes to conversation management, context construction, memory, or other orchestration logic.
+
+---
+
+## Running Locally
+
+### Requirements
+
+- .NET 10 SDK
+- Ollama
+- A model installed through Ollama
+
+Clone the repository:
+
+```bash
+git clone https://github.com/lsproat/Cosmo.git
+cd Cosmo
+```
+
+Restore dependencies:
+
+```bash
+dotnet restore
+```
+
+Run the test suite:
+
+```bash
+dotnet test
+```
+
+Start the API:
+
+```bash
+dotnet run --project Cosmo.Api
+```
+
+Ollama must be running and Cosmo must be configured to use an available local model.
+
+---
+
+## Current Limitations
+
+Cosmo is still under active development.
+
+Currently:
+
+- Conversations are stored in memory and do not survive application restarts.
+- Ollama is the only implemented model provider.
+- Conversation summarization and long-term memory are not yet implemented.
+- Tool execution and MCP integration are not yet available.
+- Automatic model routing is not yet implemented.
+- Authentication and authorization have not yet been added.
+- Streaming responses are not currently exposed by the API.
+- Production deployment and operational hardening are still planned.
+
+---
+
+## Roadmap
+
+### Near Term
+
+- Add durable conversation and message persistence
+- Add conversation retrieval/query endpoints
+- Expand automated test coverage
+- Add structured logging and provider health checks
+- Improve reliability and configuration validation
+
+### Future Orchestration
+
+- Add additional local and cloud model providers
+- Summarize older conversation history
+- Build provider-independent long-term memory
+- Add relevance-based memory retrieval
+- Introduce intelligent model routing and provider fallback
+- Add provider-independent tool/function calling
+- Explore Model Context Protocol (MCP) integration
+
+### Operations
+
+- Containerize Cosmo for deployment
+- Add production environment configuration
+- Add authentication and authorization
+- Add metrics and tracing
+- Make deployment reproducible across environments
+
+---
 
 ## Microsoft.Extensions.AI
 
-As the project evolves, I want to expand this README with a dedicated comparison between this architecture and `Microsoft.Extensions.AI`, including where the approaches overlap, which abstractions Microsoft already provides, and why this project intentionally owns additional concerns such as conversation persistence, context construction, memory, provider routing, and higher-level orchestration.
+Cosmo currently uses its own provider abstraction while the orchestration architecture is being developed.
 
-The goal is not to recreate framework functionality simply for the sake of doing so, but to understand the underlying architectural problems and explore where a purpose-built personal AI orchestration layer differs from a general-purpose model abstraction.
+`Microsoft.Extensions.AI` provides related abstractions around AI clients and model-provider integrations. As Cosmo evolves, I plan to evaluate where those abstractions can replace or complement custom provider-level infrastructure.
+
+Cosmo intentionally owns higher-level application concerns such as conversation persistence, context construction, token budgeting, memory, routing, tool authorization, and provider fallback.
+
+The goal is not to recreate framework functionality unnecessarily, but to explore the architectural boundary between model-provider abstractions and a higher-level AI orchestration platform.
+
+---
+
+## Project Direction
+
+Cosmo began as a clean interface around locally hosted models, but the broader goal is to build an application that owns its AI behavior independently of any single provider.
+
+The project is evolving around three principles:
+
+**Provider independence** — application behavior should not depend on a single model runtime or vendor.
+
+**Application-owned orchestration** — conversation state, memory, routing, tools, and context policy belong to the application.
+
+**Inspectable behavior** — as orchestration becomes more complex, it should remain possible to understand how and why Cosmo constructed context, selected a model, or invoked an external capability.
