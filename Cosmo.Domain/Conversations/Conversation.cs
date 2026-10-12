@@ -2,19 +2,26 @@
 
 public class Conversation
 {
+    private readonly List<ConversationMessage> _messages = [];
+
+    public IReadOnlyList<ConversationMessage> Messages => _messages;
+
     public Guid Id { get; init; } = Guid.NewGuid();
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
-    public List<ConversationMessage> Messages { get; } = [];
-
     public Conversation(string firstMessage)
     {
-        AddMessage(firstMessage, ConversationMessageRole.User);
+        AddUserMessage(firstMessage);
     }
 
-    public void AddMessage(string message, ConversationMessageRole role)
+    public void AddUserMessage(string message)
     {
-        Messages.Add(new ConversationMessage(role, message));
+        _messages.Add(new ConversationMessage(ConversationMessageRole.User, message));
+    }
+
+    public void AddAssistantMessage(string message)
+    {
+        _messages.Add(new ConversationMessage(ConversationMessageRole.Assistant, message));
     }
 }

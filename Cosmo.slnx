@@ -3,5 +3,6 @@
   <Project Path="Cosmo.Application/Cosmo.Application.csproj" />
   <Project Path="Cosmo.Domain/Cosmo.Domain.csproj" />
   <Project Path="Cosmo.Infrastructure/Cosmo.Infrastructure.csproj" />
+  <Project Path="Cosmo.IntegrationTests/Cosmo.IntegrationTests.csproj" />
   <Project Path="Coso.Tests/Cosmo.Tests.csproj" />
 </Solution>

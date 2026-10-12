@@ -5,7 +5,8 @@ using Cosmo.Application.Abstractions;
 using Cosmo.Application.Exceptions;
 using Cosmo.Infrastructure.Configuration;
 using Cosmo.Infrastructure.Conversations;
-using Cosmo.Infrastructure.LLMs.Ollama;
+using Cosmo.Infrastructure.ModelSources.Ollama;
+using Cosmo.Infrastructure.Tokenization.Gemma;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 
@@ -30,6 +31,7 @@ builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 
+builder.Services.AddSingleton<ITokenCounter, Gemma4TokenCounter>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IConversationContextBuilder, ConversationContextBuilder>();
 builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();

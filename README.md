@@ -145,3 +145,8 @@ This project is intended to grow beyond a simple wrapper around an LLM API. The 
 As the project evolves, I want to expand this README with a dedicated comparison between this architecture and `Microsoft.Extensions.AI`, including where the approaches overlap, which abstractions Microsoft already provides, and why this project intentionally owns additional concerns such as conversation persistence, context construction, memory, provider routing, and higher-level orchestration.
 
 The goal is not to recreate framework functionality simply for the sake of doing so, but to understand the underlying architectural problems and explore where a purpose-built personal AI orchestration layer differs from a general-purpose model abstraction.
+
+## Externally Sourced Tools
+
+[Gemma4:26B tokenizer json](https://huggingface.co/google/gemma-4-26B-A4B-it/)
+Taken from Huggingface repository on 9/23/26

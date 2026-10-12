@@ -1,4 +1,4 @@
-﻿namespace Cosmo.Infrastructure.LLMs.Ollama;
+﻿namespace Cosmo.Infrastructure.ModelSources.Ollama;
 
 internal sealed record OllamaChatRequest(
     string Model,

@@ -1,7 +1,7 @@
 using Cosmo.Application.Exceptions;
 using Cosmo.Domain.Conversations;
 using Cosmo.Infrastructure.Configuration;
-using Cosmo.Infrastructure.LLMs.Ollama;
+using Cosmo.Infrastructure.ModelSources.Ollama;
 using Microsoft.Extensions.Options;
 using System.Net;
 using System.Text;
@@ -138,7 +138,9 @@ public class OllamaModelProviderTests
     private static OllamaModelProvider CreateProvider(HttpClient client) => new(client, Options.Create(new OllamaOptions
     {
         BaseUrl = "https://ollama.invalid",
-        Model = "test-model:small"
+        Model = "test-model:small",
+        ReservedOutputTokens = 100,
+        ContextWindowTokens = 1000
     }));
 
     private static HttpResponseMessage JsonResponse(string body) => new(HttpStatusCode.OK)

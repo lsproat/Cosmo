@@ -21,7 +21,7 @@ public sealed class CreateConversationHandler(
 
         var response = await modelProvider.SendMessageAsync(context, cancellationToken);
 
-        newConversation.AddMessage(response.Content, ConversationMessageRole.Assistant);
+        newConversation.AddAssistantMessage(response.Content);
         conversationRepository.Add(newConversation);
         return new CreateConversationResult(newConversation.Id, response.Content);
     }
