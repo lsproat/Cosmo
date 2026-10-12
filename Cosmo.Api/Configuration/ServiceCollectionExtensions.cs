@@ -37,6 +37,13 @@ public static class ServiceCollectionExtensions
                 "Cosmo:BaseSystemPrompt must not be empty or whitespace.")
             .ValidateOnStart();
 
+        services.AddOptions<ConnectionStringOptions>()
+            .Bind(configuration.GetSection(ConnectionStringOptions.SectionName))
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.CosmoDatabase),
+                "ConnectionStrings:CosmoDatabase must not be empty or whitespace.")
+            .ValidateOnStart();
+
         return services;
     }
 }

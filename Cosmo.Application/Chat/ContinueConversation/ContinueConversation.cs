@@ -19,14 +19,14 @@ public sealed class ContinueConversationHandler(
         var conversation = conversationRepository.Get(request.ConversationId)
             ?? throw new ArgumentException($"Conversation with ID {request.ConversationId} not found.");
 
-        // Todo: Handle failed message send. Maybe undo message add.
-        conversation.AddUserMessage(request.Message);
-
-        var context = conversationContextBuilder.Build(conversation, cancellationToken);
+        var context = conversationContextBuilder.Build(conversation, request.Message, cancellationToken);
 
         var response = await modelProvider.SendMessageAsync(context, cancellationToken);
 
+        conversation.AddUserMessage(request.Message);
         conversation.AddAssistantMessage(response.Content);
+
+        await conversationRepository.SaveChangesAsync(cancellationToken);
 
         return new ContinueConversationResult(response.Content);
     }

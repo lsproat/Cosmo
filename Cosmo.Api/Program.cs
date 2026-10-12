@@ -3,6 +3,7 @@ using Cosmo.Api.Exceptions;
 using Cosmo.Application;
 using Cosmo.Application.Abstractions;
 using Cosmo.Application.Exceptions;
+using Cosmo.Infrastructure;
 using Cosmo.Infrastructure.Configuration;
 using Cosmo.Infrastructure.Conversations;
 using Cosmo.Infrastructure.ModelSources.Ollama;
@@ -30,11 +31,12 @@ builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
 builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 builder.Services.AddSingleton<ITokenCounter, Gemma4TokenCounter>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IConversationContextBuilder, ConversationContextBuilder>();
-builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
+//builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
 builder.Services.AddHttpClient<IModelProvider, OllamaModelProvider>((services, client) =>
 {
     var options = services.GetRequiredService<IOptions<OllamaOptions>>().Value;
@@ -42,7 +44,6 @@ builder.Services.AddHttpClient<IModelProvider, OllamaModelProvider>((services, c
     // If local model is not loaded in memory, it may take a while to respond to the first request.
     client.Timeout = TimeSpan.FromMinutes(5);
 });
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

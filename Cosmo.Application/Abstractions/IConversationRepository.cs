@@ -7,4 +7,6 @@ public interface IConversationRepository
     public Conversation? Get(Guid id);
 
     public void Add(Conversation conversation);
+
+    Task SaveChangesAsync(CancellationToken cancellationToken);
 }

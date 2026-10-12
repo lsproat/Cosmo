@@ -10,6 +10,9 @@ public class Conversation
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
+    public Conversation()
+    { }
+
     public Conversation(string firstMessage)
     {
         AddUserMessage(firstMessage);
