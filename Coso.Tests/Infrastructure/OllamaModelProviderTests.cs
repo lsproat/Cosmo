@@ -25,7 +25,7 @@ public class OllamaModelProviderTests
             var messages = body.RootElement.GetProperty("messages").EnumerateArray().ToArray();
             Assert.Equal(new[] { "system", "user", "assistant" }, messages.Select(x => x.GetProperty("role").GetString()));
             Assert.Equal(new[] { "Instructions", "Question \"quoted\"\nこんにちは", "Prior answer" }, messages.Select(x => x.GetProperty("content").GetString()));
-            return JsonResponse("""{"message":{"role":"assistant","content":"  Answer\nこんにちは  "}}""");
+            return JsonResponse("""{"message":{"role":"assistant","content":"  Answer\nこんにちは  "},"prompt_eval_count":333,"eval_count":12}""");
         });
         using var client = CreateClient(transport);
 
@@ -35,6 +35,7 @@ public class OllamaModelProviderTests
             new(ConversationMessageRole.Assistant, "Prior answer")], CancellationToken.None);
 
         Assert.Equal("  Answer\nこんにちは  ", response.Content);
+        Assert.Equal(333, response.PromptTokenCount);
         Assert.Equal(1, transport.Calls);
     }
 

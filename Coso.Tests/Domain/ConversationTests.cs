@@ -5,6 +5,15 @@ namespace Cosmo.Tests.Domain;
 public class ConversationTests
 {
     [Fact]
+    public void Constructor_EmptyConversation_HasIdentityButNoStoredSystemOrPendingMessage()
+    {
+        var conversation = new Conversation();
+        Assert.NotEqual(Guid.Empty, conversation.Id);
+        Assert.Empty(conversation.Messages);
+        Assert.Equal(TimeSpan.Zero, conversation.CreatedAt.Offset);
+    }
+
+    [Fact]
     public void Constructor_CreatesIndependentConversationsWithFirstUserMessage()
     {
         var first = new Conversation("Hello");
@@ -19,21 +28,20 @@ public class ConversationTests
     }
 
     [Fact]
-    public void AddMessage_AppendsRolesAndContentsInInsertionOrderWithDistinctIds()
+    public void AddMessages_AppendsRolesAndContentsInInsertionOrderWithDistinctIds()
     {
         var conversation = new Conversation("Question");
         var createdAt = conversation.CreatedAt;
         var firstMessageCreatedAt = conversation.Messages[0].CreatedAt;
 
-        conversation.AddMessage("Answer", ConversationMessageRole.Assistant);
-        conversation.AddMessage("Instruction", ConversationMessageRole.System);
-        conversation.AddMessage("Follow up", ConversationMessageRole.User);
+        conversation.AddAssistantMessage("Answer");
+        conversation.AddUserMessage("Follow up");
 
-        Assert.Equal(new[] { "Question", "Answer", "Instruction", "Follow up" }, conversation.Messages.Select(x => x.Content));
+        Assert.Equal(new[] { "Question", "Answer", "Follow up" }, conversation.Messages.Select(x => x.Content));
         Assert.Equal(new[] { ConversationMessageRole.User, ConversationMessageRole.Assistant,
-            ConversationMessageRole.System, ConversationMessageRole.User }, conversation.Messages.Select(x => x.Role));
+            ConversationMessageRole.User }, conversation.Messages.Select(x => x.Role));
         Assert.All(conversation.Messages, message => Assert.NotEqual(Guid.Empty, message.Id));
-        Assert.Equal(4, conversation.Messages.Select(x => x.Id).Distinct().Count());
+        Assert.Equal(3, conversation.Messages.Select(x => x.Id).Distinct().Count());
         Assert.Equal(createdAt, conversation.CreatedAt);
         Assert.Equal(firstMessageCreatedAt, conversation.Messages[0].CreatedAt);
     }

@@ -27,6 +27,9 @@ public static class ServiceCollectionExtensions
             .Validate(
                 options => options.ReservedOutputTokens > 0,
                 "Ollama:ReservedOutputTokens must not be empty and must be greater than 0.")
+            .Validate(
+                options => options.ReservedOutputTokens < options.ContextWindowTokens,
+                "Ollama:ReservedOutputTokens must be less than Ollama:ContextWindowTokens.")
             .ValidateOnStart();
 
         services

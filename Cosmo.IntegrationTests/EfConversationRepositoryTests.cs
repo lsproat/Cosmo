@@ -86,6 +86,47 @@ public class EfConversationRepositoryTests
         Assert.DoesNotContain(stored.Messages, message => message.Content == "Failed request");
     }
 
+    [Fact]
+    public async Task Get_OrdersByTimestampThenIdInsteadOfInsertionOrder()
+    {
+        var options = CreateOptions();
+        var conversation = new Conversation("Last chronologically");
+        conversation.AddAssistantMessage("Tie one");
+        conversation.AddUserMessage("Tie two");
+        var start = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
+        using (var context = new CosmoDbContext(options))
+        {
+            context.Conversations.Add(conversation);
+            context.Entry(conversation.Messages[0]).Property(message => message.CreatedAt).CurrentValue = start.AddSeconds(1);
+            context.Entry(conversation.Messages[1]).Property(message => message.CreatedAt).CurrentValue = start;
+            context.Entry(conversation.Messages[2]).Property(message => message.CreatedAt).CurrentValue = start;
+            await context.SaveChangesAsync();
+        }
+
+        using var verification = new CosmoDbContext(options);
+        var actual = new EfConversationRepository(verification).Get(conversation.Id)!;
+        var expected = conversation.Messages.Skip(1).OrderBy(message => message.Id).Append(conversation.Messages[0]);
+        Assert.Equal(expected.Select(message => message.Id), actual.Messages.Select(message => message.Id));
+    }
+
+    [Fact]
+    public async Task SaveChanges_Cancelled_DoesNotPersistAddedConversation()
+    {
+        var options = CreateOptions();
+        var conversation = new Conversation("Cancelled");
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        using (var context = new CosmoDbContext(options))
+        {
+            var repository = new EfConversationRepository(context);
+            repository.Add(conversation);
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => repository.SaveChangesAsync(cancellation.Token));
+        }
+
+        using var verification = new CosmoDbContext(options);
+        Assert.Null(new EfConversationRepository(verification).Get(conversation.Id));
+    }
+
     private static DbContextOptions<CosmoDbContext> CreateOptions() =>
         new DbContextOptionsBuilder<CosmoDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())

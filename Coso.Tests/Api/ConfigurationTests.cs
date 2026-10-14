@@ -47,6 +47,9 @@ public class ConfigurationTests
     [InlineData("Cosmo:BaseSystemPrompt", null)]
     [InlineData("Cosmo:BaseSystemPrompt", "")]
     [InlineData("Cosmo:BaseSystemPrompt", " \t\n")]
+    [InlineData("ConnectionStrings:CosmoDatabase", null)]
+    [InlineData("ConnectionStrings:CosmoDatabase", "")]
+    [InlineData("ConnectionStrings:CosmoDatabase", " \t\n")]
     public void Configuration_MissingOrBlankRequiredValue_FailsAtStartup(string key, string? value)
     {
         using var services = BuildServices(key, value);
@@ -56,12 +59,29 @@ public class ConfigurationTests
         Assert.Contains(exception.Failures, x => x.Contains(key));
     }
 
+    [Theory]
+    [InlineData("Ollama:ContextWindowTokens", "0")]
+    [InlineData("Ollama:ContextWindowTokens", "-1")]
+    [InlineData("Ollama:ReservedOutputTokens", "0")]
+    [InlineData("Ollama:ReservedOutputTokens", "-1")]
+    [InlineData("Ollama:ReservedOutputTokens", "1000")]
+    [InlineData("Ollama:ReservedOutputTokens", "1001")]
+    public void Configuration_InvalidBudget_FailsAtStartup(string key, string value)
+    {
+        using var services = BuildServices(key, value);
+        var exception = Assert.Throws<OptionsValidationException>(() => services.GetRequiredService<IStartupValidator>().Validate());
+        Assert.Contains(exception.Failures, failure => failure.Contains(key));
+    }
+
     private static ServiceProvider BuildServices(string key, string? value)
     {
         var values = new Dictionary<string, string?>
         {
             ["Ollama:BaseUrl"] = "https://ollama.invalid",
             ["Ollama:Model"] = "test-model",
+            ["Ollama:ContextWindowTokens"] = "1000",
+            ["Ollama:ReservedOutputTokens"] = "100",
+            ["ConnectionStrings:CosmoDatabase"] = "Host=localhost;Database=cosmo_test;Username=unused",
             ["Cosmo:BaseSystemPrompt"] = "Test instructions"
         };
         if (value is null) values.Remove(key);
