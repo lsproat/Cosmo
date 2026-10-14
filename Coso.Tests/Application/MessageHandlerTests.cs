@@ -29,7 +29,7 @@ public class MessageHandlerTests
     [Fact]
     public async Task CreateConversation_BuildsContextAndStoresCompletedFirstTurn()
     {
-        var repository = new InMemoryConversationRepository();
+        var repository = new RecordingRepository();
         var context = new RecordingContextBuilder();
         var model = new StubModelProvider();
         using var cancellation = new CancellationTokenSource();
@@ -37,8 +37,10 @@ public class MessageHandlerTests
         model.Respond = _ =>
         {
             Assert.Null(repository.Get(context.Conversation!.Id));
-            Assert.Equal("Hello", Assert.Single(context.Conversation.Messages).Content);
-            return Task.FromResult(new ModelResponse("Model reply"));
+            Assert.Empty(context.Conversation.Messages);
+            Assert.Equal("Hello", context.Context![^1].Content);
+            Assert.Equal(0, repository.SaveCalls);
+            return Task.FromResult(new ModelResponse("Model reply", 42));
         };
 
         var result = await handler.Handle(new CreateConversationCommand("Hello"), cancellation.Token);
@@ -59,7 +61,7 @@ public class MessageHandlerTests
     {
         var repository = new InMemoryConversationRepository();
         var conversation = new Conversation("First question");
-        conversation.AddMessage("First answer", ConversationMessageRole.Assistant);
+        conversation.AddAssistantMessage("First answer");
         repository.Add(conversation);
         var context = new RecordingContextBuilder();
         var model = new StubModelProvider();
@@ -115,15 +117,14 @@ public class MessageHandlerTests
 
         Assert.Same(failure, actual);
         Assert.Null(repository.Get(context.Conversation!.Id));
-        Assert.Single(context.Conversation.Messages);
+        Assert.Empty(context.Conversation.Messages);
     }
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task ContinueConversation_ModelFailsOrCancels_LeavesUserMessageInHistory(bool cancel)
+    public async Task ContinueConversation_ModelFailsOrCancels_LeavesHistoryUnchanged(bool cancel)
     {
-        // Characterizes the current behavior: rollback is explicitly a production TODO.
         using var cancellation = new CancellationTokenSource();
         var failure = cancel ? (Exception)new OperationCanceledException(cancellation.Token) : new HttpRequestException("Unavailable");
         var model = new StubModelProvider { Respond = _ => Task.FromException<ModelResponse>(failure) };
@@ -136,7 +137,7 @@ public class MessageHandlerTests
             new ContinueConversationCommand(conversation.Id, "Failed turn"), cancellation.Token));
 
         Assert.Same(failure, actual);
-        Assert.Equal(new[] { "Original", "Failed turn" }, repository.Get(conversation.Id)!.Messages.Select(x => x.Content));
+        Assert.Equal(new[] { "Original" }, repository.Get(conversation.Id)!.Messages.Select(x => x.Content));
         Assert.All(conversation.Messages, x => Assert.Equal(ConversationMessageRole.User, x.Role));
     }
 

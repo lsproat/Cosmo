@@ -21,6 +21,15 @@ public static class ServiceCollectionExtensions
             .Validate(
                 options => !string.IsNullOrWhiteSpace(options.Model),
                 "Ollama:Model must not be empty or whitespace.")
+            .Validate(
+                options => options.ContextWindowTokens > 0,
+                "Ollama:ContextWindowTokens must not be empty and must be greater than 0.")
+            .Validate(
+                options => options.ReservedOutputTokens > 0,
+                "Ollama:ReservedOutputTokens must not be empty and must be greater than 0.")
+            .Validate(
+                options => options.ReservedOutputTokens < options.ContextWindowTokens,
+                "Ollama:ReservedOutputTokens must be less than Ollama:ContextWindowTokens.")
             .ValidateOnStart();
 
         services
@@ -29,6 +38,13 @@ public static class ServiceCollectionExtensions
             .Validate(
                 options => !string.IsNullOrWhiteSpace(options.BaseSystemPrompt),
                 "Cosmo:BaseSystemPrompt must not be empty or whitespace.")
+            .ValidateOnStart();
+
+        services.AddOptions<ConnectionStringOptions>()
+            .Bind(configuration.GetSection(ConnectionStringOptions.SectionName))
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.CosmoDatabase),
+                "ConnectionStrings:CosmoDatabase must not be empty or whitespace.")
             .ValidateOnStart();
 
         return services;

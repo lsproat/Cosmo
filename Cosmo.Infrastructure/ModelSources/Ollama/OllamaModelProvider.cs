@@ -6,7 +6,7 @@ using Microsoft.Extensions.Options;
 using System.Net.Http.Json;
 using System.Text.Json;
 
-namespace Cosmo.Infrastructure.LLMs.Ollama;
+namespace Cosmo.Infrastructure.ModelSources.Ollama;
 
 public class OllamaModelProvider(
     HttpClient httpClient,
@@ -52,7 +52,7 @@ public class OllamaModelProvider(
                 "Ollama returned no message content.");
         }
 
-        return new ModelResponse(content);
+        return new ModelResponse(content, result!.PromptTokenCount);
     }
 
     private static string GetOllamaRole(ConversationMessageRole role) =>

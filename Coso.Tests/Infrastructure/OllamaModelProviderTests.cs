@@ -1,7 +1,7 @@
 using Cosmo.Application.Exceptions;
 using Cosmo.Domain.Conversations;
 using Cosmo.Infrastructure.Configuration;
-using Cosmo.Infrastructure.LLMs.Ollama;
+using Cosmo.Infrastructure.ModelSources.Ollama;
 using Microsoft.Extensions.Options;
 using System.Net;
 using System.Text;
@@ -25,7 +25,7 @@ public class OllamaModelProviderTests
             var messages = body.RootElement.GetProperty("messages").EnumerateArray().ToArray();
             Assert.Equal(new[] { "system", "user", "assistant" }, messages.Select(x => x.GetProperty("role").GetString()));
             Assert.Equal(new[] { "Instructions", "Question \"quoted\"\nこんにちは", "Prior answer" }, messages.Select(x => x.GetProperty("content").GetString()));
-            return JsonResponse("""{"message":{"role":"assistant","content":"  Answer\nこんにちは  "}}""");
+            return JsonResponse("""{"message":{"role":"assistant","content":"  Answer\nこんにちは  "},"prompt_eval_count":333,"eval_count":12}""");
         });
         using var client = CreateClient(transport);
 
@@ -35,6 +35,7 @@ public class OllamaModelProviderTests
             new(ConversationMessageRole.Assistant, "Prior answer")], CancellationToken.None);
 
         Assert.Equal("  Answer\nこんにちは  ", response.Content);
+        Assert.Equal(333, response.PromptTokenCount);
         Assert.Equal(1, transport.Calls);
     }
 
@@ -138,7 +139,9 @@ public class OllamaModelProviderTests
     private static OllamaModelProvider CreateProvider(HttpClient client) => new(client, Options.Create(new OllamaOptions
     {
         BaseUrl = "https://ollama.invalid",
-        Model = "test-model:small"
+        Model = "test-model:small",
+        ReservedOutputTokens = 100,
+        ContextWindowTokens = 1000
     }));
 
     private static HttpResponseMessage JsonResponse(string body) => new(HttpStatusCode.OK)

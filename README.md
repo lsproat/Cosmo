@@ -230,4 +230,9 @@ The project is evolving around three principles:
 
 **Application-owned orchestration** — conversation state, memory, routing, tools, and context policy belong to the application.
 
-**Inspectable behavior** — as orchestration becomes more complex, it should remain possible to understand how and why Cosmo constructed context, selected a model, or invoked an external capability.
+The goal is not to recreate framework functionality simply for the sake of doing so, but to understand the underlying architectural problems and explore where a purpose-built personal AI orchestration layer differs from a general-purpose model abstraction.
+
+## Externally Sourced Tools
+
+[Gemma4:26B tokenizer json](https://huggingface.co/google/gemma-4-26B-A4B-it/)
+Taken from Huggingface repository on 9/23/26

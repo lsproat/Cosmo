@@ -20,7 +20,7 @@ public class InMemoryConversationRepositoryTests
         repository.Add(first);
         repository.Add(second);
 
-        repository.Get(first.Id)!.AddMessage("Reply", ConversationMessageRole.Assistant);
+        repository.Get(first.Id)!.AddAssistantMessage("Reply");
 
         Assert.Equal(new[] { "First", "Reply" }, repository.Get(first.Id)!.Messages.Select(x => x.Content));
         Assert.Equal("Second", Assert.Single(repository.Get(second.Id)!.Messages).Content);

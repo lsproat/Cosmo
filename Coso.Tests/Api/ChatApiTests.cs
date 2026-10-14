@@ -3,6 +3,7 @@ using Cosmo.Application.Abstractions;
 using Cosmo.Application.Exceptions;
 using Cosmo.Domain.Conversations;
 using Cosmo.Tests.Support;
+using Cosmo.Infrastructure.Conversations;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -193,9 +194,72 @@ public class ChatApiTests
         Assert.True(json.RootElement.TryGetProperty("traceId", out _));
     }
 
+    [Fact]
+    public async Task FailedContinuationThenRetry_PreservesHistoryWithoutDuplicateUserInput()
+    {
+        using var factory = new ChatApiFactory();
+        using var client = factory.CreateHttpsClient();
+        var repository = factory.Services.GetRequiredService<IConversationRepository>();
+        var conversation = new Conversation("First");
+        conversation.AddAssistantMessage("First answer");
+        repository.Add(conversation);
+        factory.Model.Respond = _ => throw new HttpRequestException("Unavailable");
+
+        using var failed = await client.PostAsJsonAsync($"/api/chat/conversation/{conversation.Id}", new { message = "Pending" });
+        Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
+        Assert.Equal(new[] { "First", "First answer" }, repository.Get(conversation.Id)!.Messages.Select(message => message.Content));
+
+        factory.Model.Respond = _ => Task.FromResult(new ModelResponse("Answer", 42));
+        using var retried = await client.PostAsJsonAsync($"/api/chat/conversation/{conversation.Id}", new { message = "Pending" });
+        Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
+        Assert.Equal(new[] { "First", "First answer", "Pending", "Answer" }, repository.Get(conversation.Id)!.Messages.Select(message => message.Content));
+    }
+
+    [Fact]
+    public async Task Continuation_TrimsModelContextButKeepsFullStoredHistory()
+    {
+        using var factory = new ChatApiFactory { Counter = new StubTokenCounter(CountInput) };
+        using var client = factory.CreateHttpsClient();
+        var repository = factory.Services.GetRequiredService<IConversationRepository>();
+        var question = new string('q', 400);
+        var answer = new string('a', 400);
+        var pending = new string('p', 200);
+        var conversation = new Conversation(question);
+        conversation.AddAssistantMessage(answer);
+        repository.Add(conversation);
+
+        using var response = await client.PostAsJsonAsync($"/api/chat/conversation/{conversation.Id}", new { message = pending });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var context = Assert.Single(factory.Model.Calls);
+        Assert.Equal(2, context.Length);
+        Assert.Equal(ConversationMessageRole.System, context[0].Role);
+        Assert.Equal(pending, context[^1].Content);
+        Assert.Equal(new[] { question, answer, pending, "Model reply" }, repository.Get(conversation.Id)!.Messages.Select(message => message.Content));
+    }
+
+    [Theory]
+    [InlineData(890, HttpStatusCode.OK)]
+    [InlineData(891, HttpStatusCode.InternalServerError)]
+    public async Task CreateConversation_EnforcesInputBudgetBeforeCallingModel(int length, HttpStatusCode status)
+    {
+        using var factory = new ChatApiFactory { Counter = new StubTokenCounter(CountInput) };
+        using var client = factory.CreateHttpsClient();
+
+        using var response = await client.PostAsJsonAsync("/api/chat/conversation", new { message = new string('x', length) });
+
+        Assert.Equal(status, response.StatusCode);
+        if (status == HttpStatusCode.OK) Assert.Single(factory.Model.Calls);
+        else Assert.Empty(factory.Model.Calls);
+    }
+
+    private static int CountInput(IReadOnlyList<ConversationMessage> messages) =>
+        10 + messages.Where(message => message.Role != ConversationMessageRole.System).Sum(message => message.Content.Length);
+
     private sealed class ChatApiFactory : WebApplicationFactory<ChatController>
     {
         public StubModelProvider Model { get; } = new();
+        public ITokenCounter Counter { get; set; } = new StubTokenCounter();
 
         public HttpClient CreateHttpsClient() => CreateClient(new WebApplicationFactoryClientOptions
         {
@@ -214,6 +278,9 @@ public class ChatApiTests
                 {
                     ["Ollama:BaseUrl"] = "https://ollama.invalid",
                     ["Ollama:Model"] = "test-model",
+                    ["Ollama:ContextWindowTokens"] = "1000",
+                    ["Ollama:ReservedOutputTokens"] = "100",
+                    ["ConnectionStrings:CosmoDatabase"] = "Host=localhost;Database=cosmo_test;Username=unused",
                     ["Cosmo:BaseSystemPrompt"] = "API test instructions"
                 });
             });
@@ -221,6 +288,10 @@ public class ChatApiTests
             {
                 services.RemoveAll<IModelProvider>();
                 services.AddSingleton<IModelProvider>(Model);
+                services.RemoveAll<IConversationRepository>();
+                services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
+                services.RemoveAll<ITokenCounter>();
+                services.AddSingleton<ITokenCounter>(Counter);
                 services.RemoveAll<TimeProvider>();
                 services.AddSingleton<TimeProvider>(new FixedTimeProvider());
             });

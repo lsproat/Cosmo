@@ -1,5 +1,4 @@
 ﻿using Cosmo.Application.Abstractions;
-using Cosmo.Domain.Conversations;
 using MediatR;
 
 namespace Cosmo.Application.Chat.ContinueConversation;
@@ -20,14 +19,14 @@ public sealed class ContinueConversationHandler(
         var conversation = conversationRepository.Get(request.ConversationId)
             ?? throw new ArgumentException($"Conversation with ID {request.ConversationId} not found.");
 
-        // Todo: Handle failed message send. Maybe undo message add.
-        conversation.AddMessage(request.Message, ConversationMessageRole.User);
-
-        var context = conversationContextBuilder.Build(conversation, cancellationToken);
+        var context = conversationContextBuilder.Build(conversation, request.Message, cancellationToken);
 
         var response = await modelProvider.SendMessageAsync(context, cancellationToken);
 
-        conversation.AddMessage(response.Content, ConversationMessageRole.Assistant);
+        conversation.AddUserMessage(request.Message);
+        conversation.AddAssistantMessage(response.Content);
+
+        await conversationRepository.SaveChangesAsync(cancellationToken);
 
         return new ContinueConversationResult(response.Content);
     }
