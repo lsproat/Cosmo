@@ -33,6 +33,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
+// Todo: Important for multiple model support. Validate that the configured model is compatible with this counter at startup, or select a counter matching the model.
 builder.Services.AddSingleton<ITokenCounter, Gemma4TokenCounter>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IConversationContextBuilder, ConversationContextBuilder>();

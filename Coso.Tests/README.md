@@ -59,5 +59,6 @@ The in-memory repository is a shared-object test double and does not promise
 transactional rollback after a save failure.
 
 The tests do not claim concurrent-request serialization, idempotency, streaming,
-or strict chronological ordering when message timestamps tie. Kestrel's 512 KiB
+or concurrent sequence-number allocation. History is ordered by SequenceNumber,
+and a unique index prevents duplicate numbers within a conversation. Kestrel's 512 KiB
 request limit, TLS, and deployment-specific timeouts need server-level tests.

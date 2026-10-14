@@ -30,16 +30,17 @@ public sealed class CosmoDbContext(DbContextOptions<CosmoDbContext> options) : D
         var messages = modelBuilder.Entity<ConversationMessage>();
         messages.ToTable("ConversationMessages");
         messages.HasKey(message => message.Id);
-        messages.Property(message => message.Id).ValueGeneratedNever();
+        messages.Property(message => message.Id).ValueGeneratedNever().HasColumnOrder(0);
+        messages.Property(message => message.SequenceNumber).IsRequired().HasColumnOrder(1);
 
         // Getter-only properties must be explicitly mapped. EF can populate
         // their backing fields and bind Role/Content to the constructor.
-        messages.Property(message => message.Role).IsRequired();
-        messages.Property(message => message.Content).IsRequired();
-        messages.Property(message => message.CreatedAt).IsRequired();
+        messages.Property(message => message.Role).IsRequired().HasColumnOrder(2);
+        messages.Property(message => message.Content).IsRequired().HasColumnOrder(3);
+        messages.Property(message => message.CreatedAt).IsRequired().HasColumnOrder(4);
 
         // Keep the persistence-only foreign key out of the domain entity.
-        messages.Property<Guid>("ConversationId").IsRequired();
-        messages.HasIndex("ConversationId", nameof(ConversationMessage.CreatedAt));
+        messages.Property<Guid>("ConversationId").IsRequired().HasColumnOrder(5);
+        messages.HasIndex("ConversationId", nameof(ConversationMessage.SequenceNumber)).IsUnique();
     }
 }

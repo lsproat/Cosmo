@@ -1,9 +1,9 @@
 ﻿using Cosmo.Application.Abstractions;
 using Cosmo.Domain.Conversations;
 using Cosmo.Infrastructure.Configuration;
-using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 
 namespace Cosmo.Infrastructure.Conversations;
 
@@ -71,6 +71,7 @@ public sealed class ConversationContextBuilder(
                 .Count(message => message.Role == ConversationMessageRole.User);
             removedMessages += oldestUserMessageIndexToInclude - 1;
             conversationArray = [conversationArray[0], .. conversationArray[oldestUserMessageIndexToInclude..]];
+            // Todo: Ensure advanced logic doesn't count tokens within a loop. This gets expensive as the conversation grows.
             tokenCount = _tokenCounter.CountTokens(conversationArray);
         }
 

@@ -18,7 +18,7 @@ public class CosmoDbContextTests
         Assert.Equal("_messages", navigation.FieldInfo!.Name);
         Assert.Equal(PropertyAccessMode.Field, navigation.GetPropertyAccessMode());
 
-        foreach (var name in new[] { "Id", "Role", "Content", "CreatedAt" })
+        foreach (var name in new[] { "Id", "SequenceNumber", "Role", "Content", "CreatedAt" })
         {
             var property = messageType.FindProperty(name);
             Assert.NotNull(property);
@@ -38,6 +38,14 @@ public class CosmoDbContextTests
         Assert.Contains("CREATE TABLE \"Conversations\"", script);
         Assert.Contains("CREATE TABLE \"ConversationMessages\"", script);
         Assert.Contains("ON DELETE CASCADE", script);
+        var messageTableSql = script[script.IndexOf("CREATE TABLE \"ConversationMessages\"", StringComparison.Ordinal)..];
+        var idPosition = messageTableSql.IndexOf("\"Id\" uuid", StringComparison.Ordinal);
+        var sequencePosition = messageTableSql.IndexOf("\"SequenceNumber\" integer", StringComparison.Ordinal);
+        var rolePosition = messageTableSql.IndexOf("\"Role\" integer", StringComparison.Ordinal);
+        Assert.True(idPosition >= 0 && idPosition < sequencePosition && sequencePosition < rolePosition);
+        var sequenceIndex = Assert.Single(messageType.GetIndexes(), index => index.Properties.Select(property => property.Name)
+            .SequenceEqual(new[] { "ConversationId", "SequenceNumber" }));
+        Assert.True(sequenceIndex.IsUnique);
     }
 
     [Fact]

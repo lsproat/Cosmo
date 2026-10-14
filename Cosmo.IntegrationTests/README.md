@@ -7,7 +7,7 @@ dotnet test Cosmo.IntegrationTests/Cosmo.IntegrationTests.csproj
 ```
 
 These validate mappings, graph tracking, explicit saves, reloads, cancelled saves,
-discarded changes, and the current timestamp/ID sorting. Repository tests use EF's
+discarded changes, and sequence-number sorting. Repository tests use EF's
 InMemory provider. They do not verify PostgreSQL SQL, constraints, or transactions.
 
 ## Live PostgreSQL tests
@@ -27,7 +27,7 @@ the application's tables. An interrupted test process may leave its temporary
 schema behind.
 
 Coverage includes read-only property materialization, ordered message loading,
-saving a continuation, discarding unsaved changes, database cascading deletion,
+saving a continuation with successive sequence numbers, discarding unsaved changes, database cascading deletion,
 foreign-key enforcement, and atomic rollback of a failed save. Fixed distinct
 timestamps make ordering assertions independent of clock precision.
 

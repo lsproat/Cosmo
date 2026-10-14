@@ -42,7 +42,17 @@ public class ConversationTests
             ConversationMessageRole.User }, conversation.Messages.Select(x => x.Role));
         Assert.All(conversation.Messages, message => Assert.NotEqual(Guid.Empty, message.Id));
         Assert.Equal(3, conversation.Messages.Select(x => x.Id).Distinct().Count());
+        Assert.Equal(new[] { 0, 1, 2 }, conversation.Messages.Select(x => x.SequenceNumber));
         Assert.Equal(createdAt, conversation.CreatedAt);
         Assert.Equal(firstMessageCreatedAt, conversation.Messages[0].CreatedAt);
+    }
+
+    [Fact]
+    public void AddMessage_ContinuesAfterHighestExistingSequenceNumber()
+    {
+        var conversation = new Conversation("Existing message");
+        conversation.Messages[0].SequenceNumber = 10;
+        conversation.AddAssistantMessage("Next message");
+        Assert.Equal(11, conversation.Messages[^1].SequenceNumber);
     }
 }

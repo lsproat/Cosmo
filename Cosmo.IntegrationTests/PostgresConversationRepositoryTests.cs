@@ -41,6 +41,7 @@ public class PostgresConversationRepositoryTests
             Assert.Equal(new[] { "First question", "First answer" }, loaded.Messages.Select(message => message.Content));
             Assert.Equal(new[] { ConversationMessageRole.User, ConversationMessageRole.Assistant }, loaded.Messages.Select(message => message.Role));
             Assert.Equal(new[] { start, start.AddSeconds(1) }, loaded.Messages.Select(message => message.CreatedAt));
+            Assert.Equal(new[] { 0, 1 }, loaded.Messages.Select(message => message.SequenceNumber));
             loaded.AddUserMessage("Follow up");
             loaded.AddAssistantMessage("Second answer");
             context.ChangeTracker.DetectChanges();
@@ -53,6 +54,7 @@ public class PostgresConversationRepositoryTests
         {
             var loaded = new EfConversationRepository(context).Get(conversation.Id)!;
             Assert.Equal(new[] { "First question", "First answer", "Follow up", "Second answer" }, loaded.Messages.Select(message => message.Content));
+            Assert.Equal(new[] { 0, 1, 2, 3 }, loaded.Messages.Select(message => message.SequenceNumber));
             loaded.AddUserMessage("Unsaved failed request");
         }
 

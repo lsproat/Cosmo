@@ -47,6 +47,7 @@ public class EfConversationRepositoryTests
                 var restored = Assert.Single(loaded.Messages, message => message.Id == original.Id);
                 Assert.Equal(original.Content, restored.Content);
                 Assert.Equal(original.Role, restored.Role);
+                Assert.Equal(original.SequenceNumber, restored.SequenceNumber);
                 Assert.Equal(original.CreatedAt, restored.CreatedAt);
             }
             loaded.AddUserMessage("Next question");
@@ -57,6 +58,7 @@ public class EfConversationRepositoryTests
         using var finalContext = new CosmoDbContext(options);
         var result = new EfConversationRepository(finalContext).Get(conversation.Id)!;
         Assert.Equal(4, result.Messages.Count);
+        Assert.Equal(new[] { 0, 1, 2, 3 }, result.Messages.Select(message => message.SequenceNumber));
         Assert.Contains(result.Messages, message => message.Content == "Next question" && message.Role == ConversationMessageRole.User);
         Assert.Contains(result.Messages, message => message.Content == "Next answer" && message.Role == ConversationMessageRole.Assistant);
     }
@@ -87,12 +89,15 @@ public class EfConversationRepositoryTests
     }
 
     [Fact]
-    public async Task Get_OrdersByTimestampThenIdInsteadOfInsertionOrder()
+    public async Task Get_OrdersBySequenceNumberInsteadOfTimestampOrInsertionOrder()
     {
         var options = CreateOptions();
         var conversation = new Conversation("Last chronologically");
         conversation.AddAssistantMessage("Tie one");
         conversation.AddUserMessage("Tie two");
+        conversation.Messages[0].SequenceNumber = 2;
+        conversation.Messages[1].SequenceNumber = 1;
+        conversation.Messages[2].SequenceNumber = 0;
         var start = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
         using (var context = new CosmoDbContext(options))
         {
@@ -105,7 +110,7 @@ public class EfConversationRepositoryTests
 
         using var verification = new CosmoDbContext(options);
         var actual = new EfConversationRepository(verification).Get(conversation.Id)!;
-        var expected = conversation.Messages.Skip(1).OrderBy(message => message.Id).Append(conversation.Messages[0]);
+        var expected = conversation.Messages.OrderBy(message => message.SequenceNumber);
         Assert.Equal(expected.Select(message => message.Id), actual.Messages.Select(message => message.Id));
     }
 
