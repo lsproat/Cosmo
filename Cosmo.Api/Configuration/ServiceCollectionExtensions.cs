@@ -47,6 +47,16 @@ public static class ServiceCollectionExtensions
                 "ConnectionStrings:CosmoDatabase must not be empty or whitespace.")
             .ValidateOnStart();
 
+        services.AddOptions<Auth0Options>()
+            .Bind(configuration.GetSection(Auth0Options.SectionName))
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.Authority),
+                "Auth0:Authority must not be empty or whitespace.")
+            .Validate(
+                options => !string.IsNullOrWhiteSpace(options.Audience),
+                "Auth0:Audience must not be empty or whitespace.")
+            .ValidateOnStart();
+
         return services;
     }
 }

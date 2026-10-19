@@ -4,11 +4,12 @@ using Cosmo.Application.Chat.GetAllConversations;
 using Cosmo.Application.Chat.GetConversation;
 using Cosmo.Application.Chat.SendMessage;
 using MediatR;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Cosmo.Api.Chat;
 
-// Todo: Auth
+[Authorize]
 [ApiController]
 [Route("api/chat")]
 public class ChatController(ISender sender) : ControllerBase
@@ -33,7 +34,7 @@ public class ChatController(ISender sender) : ControllerBase
 
     [HttpPost("conversation/{conversationId}")]
     [RequestSizeLimit(512 * 1024)]
-    public async Task<ActionResult<ContinueConversationResult>> ContinueConversation(Guid conversationId, ContinueConversationRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ContinueConversationResult>> ContinueConversation(int conversationId, ContinueConversationRequest request, CancellationToken cancellationToken)
     {
         var command = new ContinueConversationCommand(conversationId, request.Message);
         var result = await sender.Send(command, cancellationToken);
@@ -41,7 +42,7 @@ public class ChatController(ISender sender) : ControllerBase
     }
 
     [HttpGet("conversation/{conversationId}")]
-    public async Task<ActionResult<GetConversationResult>> GetConversation(Guid conversationId, CancellationToken cancellationToken)
+    public async Task<ActionResult<GetConversationResult>> GetConversation(int conversationId, CancellationToken cancellationToken)
     {
         var query = new GetConversationQuery(conversationId);
         var result = await sender.Send(query, cancellationToken);

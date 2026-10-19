@@ -6,7 +6,7 @@ namespace Cosmo.Infrastructure.Conversations;
 
 public sealed class EfConversationRepository(CosmoDbContext context) : IConversationRepository
 {
-    public Conversation? Get(Guid id) => context.Conversations
+    public Conversation? Get(int id) => context.Conversations
         .Include(conversation => conversation.Messages
             .OrderBy(message => message.SequenceNumber))
         .SingleOrDefault(conversation => conversation.Id == id);

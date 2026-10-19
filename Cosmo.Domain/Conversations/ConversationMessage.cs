@@ -7,7 +7,7 @@ string content,
 // from within Conversation class wich will enforce correct ordering.
 int sequenceNumber = 0)
 {
-    public Guid Id { get; } = Guid.NewGuid();
+    public int Id { get; }
 
     public int SequenceNumber { get; } = sequenceNumber;
 

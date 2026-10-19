@@ -4,7 +4,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cosmo.Application.Chat.GetAllConversations;
 
-public record GetAllConversationsQuery : IRequest<GetAllConversationsResult>;
+public record GetAllConversationsQuery : IRequest<GetAllConversationsResult>, IUserRequest
+{
+    public int UserId { get; set; }
+}
 
 public sealed class GetAllConversationsHandler(ICosmoDbContext cosmoDbContext)
     : IRequestHandler<GetAllConversationsQuery, GetAllConversationsResult>
@@ -14,6 +17,7 @@ public sealed class GetAllConversationsHandler(ICosmoDbContext cosmoDbContext)
         CancellationToken cancellationToken)
     {
         var conversationSummaries = await cosmoDbContext.Conversations
+            .Where(conversation => conversation.UserId == request.UserId)
             .Select(conversation => new ConversationSummary(
                 conversation.Id,
                 conversation.Title,

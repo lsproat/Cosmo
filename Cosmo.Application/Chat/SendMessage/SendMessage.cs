@@ -4,7 +4,10 @@ using MediatR;
 
 namespace Cosmo.Application.Chat.SendMessage;
 
-public record SendMessageCommand(string Message) : IRequest<SendMessageResult>;
+public record SendMessageCommand(string Message) : IRequest<SendMessageResult>, IUserRequest
+{
+    public int UserId { get; set; }
+}
 
 public sealed class SendMessageHandler(IModelProvider modelProvider) : IRequestHandler<SendMessageCommand, SendMessageResult>
 {

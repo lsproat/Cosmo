@@ -1,6 +1,6 @@
 ﻿namespace Cosmo.Application.Chat.GetAllConversations;
 
 public sealed record ConversationSummary(
-    Guid Id,
+    int Id,
     string Title,
     DateTimeOffset CreatedAt);

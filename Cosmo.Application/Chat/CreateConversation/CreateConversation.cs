@@ -4,7 +4,10 @@ using MediatR;
 
 namespace Cosmo.Application.Chat.CreateConversation;
 
-public record CreateConversationCommand(string Message) : IRequest<CreateConversationResult>;
+public record CreateConversationCommand(string Message) : IRequest<CreateConversationResult>, IUserRequest
+{
+    public int UserId { get; set; }
+}
 
 public sealed class CreateConversationHandler(
     IModelProvider modelProvider,
@@ -16,7 +19,7 @@ public sealed class CreateConversationHandler(
         CreateConversationCommand request,
         CancellationToken cancellationToken)
     {
-        var newConversation = new Conversation();
+        var newConversation = new Conversation() { UserId = request.UserId };
         var context = conversationContextBuilder.Build(newConversation, request.Message, cancellationToken);
 
         var response = await modelProvider.SendMessageAsync(context, cancellationToken);

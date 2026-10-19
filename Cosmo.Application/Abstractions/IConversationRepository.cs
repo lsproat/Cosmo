@@ -4,7 +4,7 @@ namespace Cosmo.Application.Abstractions;
 
 public interface IConversationRepository
 {
-    public Conversation? Get(Guid id);
+    public Conversation? Get(int id);
 
     public void Add(Conversation conversation);
 

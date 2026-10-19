@@ -1,3 +1,4 @@
+using Cosmo.Api.Authentication;
 using Cosmo.Api.Configuration;
 using Cosmo.Api.Exceptions;
 using Cosmo.Application;
@@ -8,6 +9,7 @@ using Cosmo.Infrastructure.Configuration;
 using Cosmo.Infrastructure.Conversations;
 using Cosmo.Infrastructure.ModelSources.Ollama;
 using Cosmo.Infrastructure.Tokenization.Gemma;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using System.Diagnostics;
 
@@ -17,6 +19,19 @@ builder.Configuration
     .AddEnvironmentVariables();
 
 builder.Services.AddCosmoConfiguration(builder.Configuration);
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer();
+builder.Services
+    .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+    .Configure<IOptions<Auth0Options>>((auth, options) =>
+    {
+        auth.Authority = options.Value.Authority;
+        auth.Audience = options.Value.Audience;
+        auth.MapInboundClaims = false;
+    });
+builder.Services.AddAuthorization();
 
 builder.Services.AddProblemDetails(options =>
 {
@@ -33,11 +48,12 @@ builder.Services.AddOpenApi();
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, HttpCurrentUser>();
 // Todo: Important for multiple model support. Validate that the configured model is compatible with this counter at startup, or select a counter matching the model.
 builder.Services.AddSingleton<ITokenCounter, Gemma4TokenCounter>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<IConversationContextBuilder, ConversationContextBuilder>();
-//builder.Services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
 builder.Services.AddHttpClient<IModelProvider, OllamaModelProvider>((services, client) =>
 {
     var options = services.GetRequiredService<IOptions<OllamaOptions>>().Value;
@@ -57,6 +73,8 @@ app.UseExceptionHandler(new ExceptionHandlerOptions
 {
     StatusCodeSelector = exception => exception switch
     {
+        UnauthenticatedUserException => StatusCodes.Status401Unauthorized,
+
         KeyNotFoundException => StatusCodes.Status404NotFound,
 
         ModelProviderResponseException =>

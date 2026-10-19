@@ -6,11 +6,13 @@ public class Conversation
 
     public IReadOnlyList<ConversationMessage> Messages => _messages;
 
-    public Guid Id { get; init; } = Guid.NewGuid();
+    public int Id { get; }
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
     public string Title { get; set; } = string.Empty;
+
+    public int UserId { get; set; }
 
     public Conversation()
     { }
