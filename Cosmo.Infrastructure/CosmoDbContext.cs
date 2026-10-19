@@ -1,9 +1,10 @@
+using Cosmo.Application.Abstractions;
 using Cosmo.Domain.Conversations;
 using Microsoft.EntityFrameworkCore;
 
 namespace Cosmo.Infrastructure;
 
-public sealed class CosmoDbContext(DbContextOptions<CosmoDbContext> options) : DbContext(options)
+public sealed class CosmoDbContext(DbContextOptions<CosmoDbContext> options) : DbContext(options), ICosmoDbContext
 {
     public DbSet<Conversation> Conversations => Set<Conversation>();
     public DbSet<ConversationMessage> ConversationMessages => Set<ConversationMessage>();

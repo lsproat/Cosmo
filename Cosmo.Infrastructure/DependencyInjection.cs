@@ -1,7 +1,6 @@
-﻿using Cosmo.Infrastructure.Configuration;
+﻿using Cosmo.Application.Abstractions;
+using Cosmo.Infrastructure.Configuration;
 using Microsoft.EntityFrameworkCore;
-using Cosmo.Application.Abstractions;
-using Cosmo.Infrastructure.Conversations;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -14,14 +13,14 @@ public static class DependencyInjection
          this IServiceCollection services,
          IConfiguration configuration)
     {
-        services.AddDbContext<CosmoDbContext>((serviceProvider, options) =>
+        services.AddDbContext<ICosmoDbContext, CosmoDbContext>((serviceProvider, options) =>
         {
             var connectionStrings = serviceProvider
                 .GetRequiredService<IOptions<ConnectionStringOptions>>().Value;
             options.UseNpgsql(connectionStrings.CosmoDatabase);
         });
 
-        services.AddScoped<IConversationRepository, EfConversationRepository>();
+        //services.AddScoped<IConversationRepository, EfConversationRepository>();
 
         return services;
     }

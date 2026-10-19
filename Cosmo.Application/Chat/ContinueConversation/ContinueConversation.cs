@@ -1,5 +1,6 @@
 ﻿using Cosmo.Application.Abstractions;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 
 namespace Cosmo.Application.Chat.ContinueConversation;
 
@@ -7,7 +8,7 @@ public record ContinueConversationCommand(Guid ConversationId, string Message) :
 
 public sealed class ContinueConversationHandler(
     IModelProvider modelProvider,
-    IConversationRepository conversationRepository,
+    ICosmoDbContext cosmoDbContext,
     IConversationContextBuilder conversationContextBuilder)
     : IRequestHandler<ContinueConversationCommand, ContinueConversationResult>
 {
@@ -16,7 +17,9 @@ public sealed class ContinueConversationHandler(
         CancellationToken cancellationToken)
     {
         // Todo: Customize exception type for not found. Maybe a NotFoundException.
-        var conversation = conversationRepository.Get(request.ConversationId)
+        var conversation = await cosmoDbContext.Conversations
+            .Include(convo => convo.Messages)
+            .FirstOrDefaultAsync(convo => convo.Id == request.ConversationId, cancellationToken)
             ?? throw new ArgumentException($"Conversation with ID {request.ConversationId} not found.");
 
         var context = conversationContextBuilder.Build(conversation, request.Message, cancellationToken);
@@ -26,7 +29,7 @@ public sealed class ContinueConversationHandler(
         conversation.AddUserMessage(request.Message);
         conversation.AddAssistantMessage(response.Content);
 
-        await conversationRepository.SaveChangesAsync(cancellationToken);
+        await cosmoDbContext.SaveChangesAsync(cancellationToken);
 
         return new ContinueConversationResult(response.Content);
     }

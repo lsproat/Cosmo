@@ -6,8 +6,8 @@ BEGIN;
 
 CREATE TABLE "Conversations" (
     "Id" uuid NOT NULL,
-    "CreatedAt" timestamp with time zone NOT NULL,
     "Title" text NOT NULL,
+    "CreatedAt" timestamp with time zone NOT NULL,
     CONSTRAINT "PK_Conversations" PRIMARY KEY ("Id")
 );
 

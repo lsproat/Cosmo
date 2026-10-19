@@ -8,7 +8,7 @@ public record CreateConversationCommand(string Message) : IRequest<CreateConvers
 
 public sealed class CreateConversationHandler(
     IModelProvider modelProvider,
-    IConversationRepository conversationRepository,
+    ICosmoDbContext cosmoDbContext,
     IConversationContextBuilder conversationContextBuilder)
     : IRequestHandler<CreateConversationCommand, CreateConversationResult>
 {
@@ -23,8 +23,8 @@ public sealed class CreateConversationHandler(
 
         newConversation.AddUserMessage(request.Message);
         newConversation.AddAssistantMessage(response.Content);
-        conversationRepository.Add(newConversation);
-        await conversationRepository.SaveChangesAsync(cancellationToken);
+        cosmoDbContext.Conversations.Add(newConversation);
+        await cosmoDbContext.SaveChangesAsync(cancellationToken);
         return new CreateConversationResult(newConversation.Id, response.Content);
     }
 }

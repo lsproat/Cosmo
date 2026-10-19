@@ -18,9 +18,6 @@ public class Conversation
     public Conversation(string firstMessage)
     {
         AddUserMessage(firstMessage);
-
-        //Todo: Remove and add logic to create summarized title after first message is sent and response is received.
-        Title = firstMessage.Length > 20 ? firstMessage[..20] : firstMessage;
     }
 
     public void AddUserMessage(string message)
@@ -35,7 +32,16 @@ public class Conversation
 
     private void AddMessage(ConversationMessageRole role, string content)
     {
-        var nextSequenceNumber = _messages.Count == 0 ? 0 : checked(_messages[^1].SequenceNumber + 1);
+        var nextSequenceNumber = 0;
+        if (_messages.Count == 0)
+        {
+            //Todo: Remove and add logic to create summarized title after first message is sent and response is received.
+            Title = content.Length > 20 ? content[..20] + "..." : content;
+        }
+        else
+        {
+            nextSequenceNumber = checked(_messages.Max(message => message.SequenceNumber) + 1);
+        }
         _messages.Add(new ConversationMessage(role, content, nextSequenceNumber));
     }
 }

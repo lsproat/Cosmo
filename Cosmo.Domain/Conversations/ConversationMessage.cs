@@ -3,7 +3,9 @@
 public sealed class ConversationMessage(
 ConversationMessageRole role,
 string content,
-int sequenceNumber)
+// Default to 0 for compatibility. Messages can only be added to a conversation
+// from within Conversation class wich will enforce correct ordering.
+int sequenceNumber = 0)
 {
     public Guid Id { get; } = Guid.NewGuid();
 
