@@ -14,7 +14,7 @@ public class ConversationPersistenceTests
     public async Task SuccessfulRequest_SavesCompletedExchangeAfterGeneration(bool continuing)
     {
         using var cancellation = new CancellationTokenSource();
-        var repository = new RecordingRepository();
+        using var repository = new RecordingDbContext();
         var conversation = new Conversation("Original");
         conversation.AddAssistantMessage("Original answer");
         repository.Seed(conversation);
@@ -61,7 +61,7 @@ public class ConversationPersistenceTests
     {
         using var cancellation = new CancellationTokenSource();
         var failure = cancel ? (Exception)new OperationCanceledException(cancellation.Token) : new HttpRequestException("Unavailable");
-        var repository = new RecordingRepository();
+        using var repository = new RecordingDbContext();
         var conversation = new Conversation("Original");
         repository.Seed(conversation);
         var context = new RecordingContextBuilder();
@@ -82,7 +82,7 @@ public class ConversationPersistenceTests
     [InlineData(true)]
     public async Task ContextRejection_DoesNotCallModelOrSave(bool continuing)
     {
-        var repository = new RecordingRepository();
+        using var repository = new RecordingDbContext();
         var conversation = new Conversation("Original");
         repository.Seed(conversation);
         var model = new StubModelProvider();
@@ -102,7 +102,7 @@ public class ConversationPersistenceTests
     public async Task SaveFailure_PropagatesRatherThanReturningSuccess(bool continuing)
     {
         var failure = new InvalidOperationException("Save failed");
-        var repository = new RecordingRepository { Save = _ => Task.FromException(failure) };
+        using var repository = new RecordingDbContext { Save = _ => Task.FromException(failure) };
         var conversation = new Conversation("Original");
         repository.Seed(conversation);
         var model = new StubModelProvider();
@@ -118,7 +118,7 @@ public class ConversationPersistenceTests
     [Fact]
     public async Task FailedContinuationThenRetry_DoesNotDuplicatePendingUserMessage()
     {
-        var repository = new RecordingRepository();
+        using var repository = new RecordingDbContext();
         var conversation = new Conversation("Original");
         conversation.AddAssistantMessage("Original answer");
         repository.Seed(conversation);
@@ -134,7 +134,7 @@ public class ConversationPersistenceTests
         Assert.Equal(1, repository.SaveCalls);
     }
 
-    private static async Task Invoke(bool continuing, IConversationRepository repository, IModelProvider model,
+    private static async Task Invoke(bool continuing, RecordingDbContext repository, IModelProvider model,
         IConversationContextBuilder context, Guid id, CancellationToken token)
     {
         if (continuing)

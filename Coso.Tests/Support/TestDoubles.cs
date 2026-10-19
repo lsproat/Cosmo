@@ -1,6 +1,8 @@
+using Microsoft.EntityFrameworkCore;
 using Cosmo.Application.Abstractions;
 using Cosmo.Domain.Conversations;
 using Cosmo.Infrastructure.Configuration;
+using Cosmo.Infrastructure;
 using Cosmo.Infrastructure.Conversations;
 using Microsoft.Extensions.Options;
 using Microsoft.Extensions.Logging;
@@ -67,29 +69,43 @@ internal sealed class StubTokenCounter(Func<IReadOnlyList<ConversationMessage>, 
     }
 }
 
-internal sealed class RecordingRepository : IConversationRepository
+internal sealed class RecordingDbContext : ICosmoDbContext, IDisposable
 {
-    private readonly Dictionary<Guid, Conversation> _conversations = [];
+    private readonly CosmoDbContext _context = new(
+        new DbContextOptionsBuilder<CosmoDbContext>()
+            .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+    public DbSet<Conversation> Conversations => _context.Conversations;
+    public DbSet<ConversationMessage> ConversationMessages => _context.ConversationMessages;
     public int AddCalls { get; private set; }
     public int SaveCalls { get; private set; }
     public CancellationToken SaveToken { get; private set; }
     public Func<CancellationToken, Task>? Save { get; set; }
 
-    public Conversation? Get(Guid id) => _conversations.GetValueOrDefault(id);
-    public void Seed(Conversation conversation) => _conversations.Add(conversation.Id, conversation);
-
-    public void Add(Conversation conversation)
+    public RecordingDbContext()
     {
-        AddCalls++;
-        _conversations.Add(conversation.Id, conversation);
+        _context.ChangeTracker.Tracked += (_, args) =>
+        {
+            if (args.Entry.Entity is Conversation && args.Entry.State == EntityState.Added) AddCalls++;
+        };
     }
 
-    public Task SaveChangesAsync(CancellationToken cancellationToken)
+    public Conversation? Get(Guid id) => Conversations.Local.SingleOrDefault(c => c.Id == id);
+    public void Seed(Conversation conversation)
+    {
+        Conversations.Add(conversation);
+        _context.SaveChanges();
+        AddCalls--;
+    }
+
+    public async Task<int> SaveChangesAsync(CancellationToken cancellationToken)
     {
         SaveCalls++;
         SaveToken = cancellationToken;
-        return Save?.Invoke(cancellationToken) ?? Task.CompletedTask;
+        if (Save is not null) await Save(cancellationToken);
+        return await _context.SaveChangesAsync(cancellationToken);
     }
+
+    public void Dispose() => _context.Dispose();
 }
 
 internal sealed class RecordingLogger<T> : ILogger<T>

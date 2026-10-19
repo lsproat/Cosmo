@@ -47,6 +47,7 @@ public class EfConversationRepositoryTests
                 var restored = Assert.Single(loaded.Messages, message => message.Id == original.Id);
                 Assert.Equal(original.Content, restored.Content);
                 Assert.Equal(original.Role, restored.Role);
+                Assert.Equal(original.SequenceNumber, restored.SequenceNumber);
                 Assert.Equal(original.CreatedAt, restored.CreatedAt);
             }
             loaded.AddUserMessage("Next question");
@@ -57,6 +58,7 @@ public class EfConversationRepositoryTests
         using var finalContext = new CosmoDbContext(options);
         var result = new EfConversationRepository(finalContext).Get(conversation.Id)!;
         Assert.Equal(4, result.Messages.Count);
+        Assert.Equal(new[] { 0, 1, 2, 3 }, result.Messages.Select(message => message.SequenceNumber));
         Assert.Contains(result.Messages, message => message.Content == "Next question" && message.Role == ConversationMessageRole.User);
         Assert.Contains(result.Messages, message => message.Content == "Next answer" && message.Role == ConversationMessageRole.Assistant);
     }
@@ -87,7 +89,7 @@ public class EfConversationRepositoryTests
     }
 
     [Fact]
-    public async Task Get_OrdersByTimestampThenIdInsteadOfInsertionOrder()
+    public async Task Get_OrdersBySequenceNumberInsteadOfTimestampOrInsertionOrder()
     {
         var options = CreateOptions();
         var conversation = new Conversation("Last chronologically");
@@ -97,6 +99,8 @@ public class EfConversationRepositoryTests
         using (var context = new CosmoDbContext(options))
         {
             context.Conversations.Add(conversation);
+            for (var i = 0; i < 3; i++)
+                context.Entry(conversation.Messages[i]).Property(message => message.SequenceNumber).CurrentValue = 2 - i;
             context.Entry(conversation.Messages[0]).Property(message => message.CreatedAt).CurrentValue = start.AddSeconds(1);
             context.Entry(conversation.Messages[1]).Property(message => message.CreatedAt).CurrentValue = start;
             context.Entry(conversation.Messages[2]).Property(message => message.CreatedAt).CurrentValue = start;
@@ -105,7 +109,7 @@ public class EfConversationRepositoryTests
 
         using var verification = new CosmoDbContext(options);
         var actual = new EfConversationRepository(verification).Get(conversation.Id)!;
-        var expected = conversation.Messages.Skip(1).OrderBy(message => message.Id).Append(conversation.Messages[0]);
+        var expected = conversation.Messages.OrderBy(message => message.SequenceNumber);
         Assert.Equal(expected.Select(message => message.Id), actual.Messages.Select(message => message.Id));
     }
 

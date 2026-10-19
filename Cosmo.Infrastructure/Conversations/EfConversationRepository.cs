@@ -8,8 +8,7 @@ public sealed class EfConversationRepository(CosmoDbContext context) : IConversa
 {
     public Conversation? Get(Guid id) => context.Conversations
         .Include(conversation => conversation.Messages
-            .OrderBy(message => message.CreatedAt)
-            .ThenBy(message => message.Id))
+            .OrderBy(message => message.SequenceNumber))
         .SingleOrDefault(conversation => conversation.Id == id);
 
     public void Add(Conversation conversation) => context.Conversations.Add(conversation);

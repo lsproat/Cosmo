@@ -1,9 +1,11 @@
+using Cosmo.Infrastructure;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Cosmo.Api.Chat;
 using Cosmo.Application.Abstractions;
 using Cosmo.Application.Exceptions;
 using Cosmo.Domain.Conversations;
 using Cosmo.Tests.Support;
-using Cosmo.Infrastructure.Conversations;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -20,6 +22,106 @@ namespace Cosmo.Tests.Api;
 
 public class ChatApiTests
 {
+    [Fact]
+    public async Task GetConversations_EmptyDatabase_ReturnsEmptyArrayWithoutCallingModel()
+    {
+        using var factory = new ChatApiFactory();
+        using var client = factory.CreateHttpsClient();
+
+        using var response = await client.GetAsync("/api/chat/conversations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Empty(json.RootElement.GetProperty("conversations").EnumerateArray());
+        Assert.Empty(factory.Model.Calls);
+    }
+
+    [Fact]
+    public async Task GetConversations_ReturnsSummariesWithoutMessageHistory()
+    {
+        using var factory = new ChatApiFactory();
+        using var client = factory.CreateHttpsClient();
+        var first = new Conversation("A long opening message that becomes a title");
+        first.AddAssistantMessage("Private reply");
+        var second = new Conversation("Short title");
+        factory.Seed(first);
+        factory.Seed(second);
+
+        using var response = await client.GetAsync("/api/chat/conversations");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var summaries = json.RootElement.GetProperty("conversations").EnumerateArray().ToArray();
+        Assert.Equal(2, summaries.Length);
+        foreach (var expected in new[] { first, second })
+        {
+            var summary = Assert.Single(summaries, item => item.GetProperty("id").GetGuid() == expected.Id);
+            Assert.Equal(expected.Title, summary.GetProperty("title").GetString());
+            Assert.Equal(expected.CreatedAt, summary.GetProperty("createdAt").GetDateTimeOffset());
+            Assert.Equal(3, summary.EnumerateObject().Count());
+        }
+        Assert.Empty(factory.Model.Calls);
+    }
+
+    [Fact]
+    public async Task GetConversation_AfterCreateAndContinue_ReturnsPersistedHistoryAndMetadata()
+    {
+        using var factory = new ChatApiFactory();
+        using var client = factory.CreateHttpsClient();
+        using var created = await client.PostAsJsonAsync("/api/chat/conversation", new { message = "First question" });
+        created.EnsureSuccessStatusCode();
+        using var createJson = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var id = createJson.RootElement.GetProperty("conversationId").GetGuid();
+        using var continued = await client.PostAsJsonAsync($"/api/chat/conversation/{id}", new { message = "Next question" });
+        continued.EnsureSuccessStatusCode();
+        var stored = factory.Get(id)!;
+
+        using var response = await client.GetAsync($"/api/chat/conversation/{id}");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var conversation = json.RootElement.GetProperty("conversation");
+        Assert.Equal(id, conversation.GetProperty("id").GetGuid());
+        Assert.Equal("First question", conversation.GetProperty("title").GetString());
+        Assert.Equal(stored.CreatedAt, conversation.GetProperty("createdAt").GetDateTimeOffset());
+        var messages = conversation.GetProperty("messages").EnumerateArray().ToArray();
+        Assert.Equal(new[] { "First question", "Model reply", "Next question", "Model reply" },
+            messages.Select(message => message.GetProperty("content").GetString()));
+        Assert.Equal(new[] { 0, 1, 2, 3 }, messages.Select(message => message.GetProperty("sequenceNumber").GetInt32()));
+        Assert.Equal(new[] { 1, 2, 1, 2 }, messages.Select(message => message.GetProperty("role").GetInt32()));
+        Assert.Equal(stored.Messages.Select(message => message.Id), messages.Select(message => message.GetProperty("id").GetGuid()));
+        Assert.Equal(stored.Messages.Select(message => message.CreatedAt), messages.Select(message => message.GetProperty("createdAt").GetDateTimeOffset()));
+        Assert.Equal(2, factory.Model.Calls.Count);
+    }
+
+    [Fact]
+    public async Task GetConversation_UnknownId_ReturnsNotFoundProblemWithoutCallingModel()
+    {
+        using var factory = new ChatApiFactory();
+        using var client = factory.CreateHttpsClient();
+
+        using var response = await client.GetAsync($"/api/chat/conversation/{Guid.NewGuid()}");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType!.MediaType);
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        Assert.Equal(404, json.RootElement.GetProperty("status").GetInt32());
+        Assert.False(string.IsNullOrEmpty(json.RootElement.GetProperty("traceId").GetString()));
+        Assert.Empty(factory.Model.Calls);
+    }
+
+    [Fact]
+    public async Task GetConversation_InvalidGuid_ReturnsBadRequestWithoutCallingModel()
+    {
+        using var factory = new ChatApiFactory();
+        using var client = factory.CreateHttpsClient();
+
+        using var response = await client.GetAsync("/api/chat/conversation/not-a-guid");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Empty(factory.Model.Calls);
+    }
+
     [Theory]
     [InlineData("/api/chat/sendMessage", "")]
     [InlineData("/api/chat/sendMessage", " \t")]
@@ -57,7 +159,7 @@ public class ChatApiTests
         using var factory = new ChatApiFactory();
         using var client = factory.CreateHttpsClient();
         var conversation = new Conversation("First");
-        factory.Services.GetRequiredService<IConversationRepository>().Add(conversation);
+        factory.Seed(conversation);
         var message = new string('x', 64_001);
 
         using var response = await client.PostAsJsonAsync($"/api/chat/conversation/{conversation.Id}", new { message });
@@ -104,8 +206,7 @@ public class ChatApiTests
         Assert.Equal(ConversationMessageRole.System, factory.Model.Calls[0][0].Role);
         Assert.StartsWith("API test instructions", factory.Model.Calls[0][0].Content);
         Assert.Equal(new[] { "First", "Model reply", "Second" }, factory.Model.Calls[1].Skip(1).Select(x => x.Content));
-        var repository = factory.Services.GetRequiredService<IConversationRepository>();
-        Assert.Equal(new[] { "First", "Model reply", "Second", "Model reply" }, repository.Get(id)!.Messages.Select(x => x.Content));
+        Assert.Equal(new[] { "First", "Model reply", "Second", "Model reply" }, factory.Get(id)!.Messages.Select(x => x.Content));
     }
 
     [Theory]
@@ -199,20 +300,19 @@ public class ChatApiTests
     {
         using var factory = new ChatApiFactory();
         using var client = factory.CreateHttpsClient();
-        var repository = factory.Services.GetRequiredService<IConversationRepository>();
         var conversation = new Conversation("First");
         conversation.AddAssistantMessage("First answer");
-        repository.Add(conversation);
+        factory.Seed(conversation);
         factory.Model.Respond = _ => throw new HttpRequestException("Unavailable");
 
         using var failed = await client.PostAsJsonAsync($"/api/chat/conversation/{conversation.Id}", new { message = "Pending" });
         Assert.Equal(HttpStatusCode.BadGateway, failed.StatusCode);
-        Assert.Equal(new[] { "First", "First answer" }, repository.Get(conversation.Id)!.Messages.Select(message => message.Content));
+        Assert.Equal(new[] { "First", "First answer" }, factory.Get(conversation.Id)!.Messages.Select(message => message.Content));
 
         factory.Model.Respond = _ => Task.FromResult(new ModelResponse("Answer", 42));
         using var retried = await client.PostAsJsonAsync($"/api/chat/conversation/{conversation.Id}", new { message = "Pending" });
         Assert.Equal(HttpStatusCode.OK, retried.StatusCode);
-        Assert.Equal(new[] { "First", "First answer", "Pending", "Answer" }, repository.Get(conversation.Id)!.Messages.Select(message => message.Content));
+        Assert.Equal(new[] { "First", "First answer", "Pending", "Answer" }, factory.Get(conversation.Id)!.Messages.Select(message => message.Content));
     }
 
     [Fact]
@@ -220,13 +320,12 @@ public class ChatApiTests
     {
         using var factory = new ChatApiFactory { Counter = new StubTokenCounter(CountInput) };
         using var client = factory.CreateHttpsClient();
-        var repository = factory.Services.GetRequiredService<IConversationRepository>();
         var question = new string('q', 400);
         var answer = new string('a', 400);
         var pending = new string('p', 200);
         var conversation = new Conversation(question);
         conversation.AddAssistantMessage(answer);
-        repository.Add(conversation);
+        factory.Seed(conversation);
 
         using var response = await client.PostAsJsonAsync($"/api/chat/conversation/{conversation.Id}", new { message = pending });
 
@@ -235,7 +334,7 @@ public class ChatApiTests
         Assert.Equal(2, context.Length);
         Assert.Equal(ConversationMessageRole.System, context[0].Role);
         Assert.Equal(pending, context[^1].Content);
-        Assert.Equal(new[] { question, answer, pending, "Model reply" }, repository.Get(conversation.Id)!.Messages.Select(message => message.Content));
+        Assert.Equal(new[] { question, answer, pending, "Model reply" }, factory.Get(conversation.Id)!.Messages.Select(message => message.Content));
     }
 
     [Theory]
@@ -258,6 +357,23 @@ public class ChatApiTests
 
     private sealed class ChatApiFactory : WebApplicationFactory<ChatController>
     {
+        private readonly string _databaseName = Guid.NewGuid().ToString();
+
+        public void Seed(Conversation conversation)
+        {
+            using var scope = Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<CosmoDbContext>();
+            db.Conversations.Add(conversation);
+            db.SaveChanges();
+        }
+
+        public Conversation? Get(Guid id)
+        {
+            using var scope = Services.CreateScope();
+            return scope.ServiceProvider.GetRequiredService<CosmoDbContext>().Conversations
+                .Include(c => c.Messages.OrderBy(m => m.SequenceNumber)).SingleOrDefault(c => c.Id == id);
+        }
+
         public StubModelProvider Model { get; } = new();
         public ITokenCounter Counter { get; set; } = new StubTokenCounter();
 
@@ -288,8 +404,11 @@ public class ChatApiTests
             {
                 services.RemoveAll<IModelProvider>();
                 services.AddSingleton<IModelProvider>(Model);
-                services.RemoveAll<IConversationRepository>();
-                services.AddSingleton<IConversationRepository, InMemoryConversationRepository>();
+                services.RemoveAll<ICosmoDbContext>();
+                services.RemoveAll<CosmoDbContext>();
+                services.RemoveAll<DbContextOptions<CosmoDbContext>>();
+                services.RemoveAll<IDbContextOptionsConfiguration<CosmoDbContext>>();
+                services.AddDbContext<ICosmoDbContext, CosmoDbContext>(options => options.UseInMemoryDatabase(_databaseName));
                 services.RemoveAll<ITokenCounter>();
                 services.AddSingleton<ITokenCounter>(Counter);
                 services.RemoveAll<TimeProvider>();

@@ -10,6 +10,8 @@ public class Conversation
 
     public DateTimeOffset CreatedAt { get; init; } = DateTimeOffset.UtcNow;
 
+    public string Title { get; set; } = string.Empty;
+
     public Conversation()
     { }
 
@@ -20,11 +22,26 @@ public class Conversation
 
     public void AddUserMessage(string message)
     {
-        _messages.Add(new ConversationMessage(ConversationMessageRole.User, message));
+        AddMessage(ConversationMessageRole.User, message);
     }
 
     public void AddAssistantMessage(string message)
     {
-        _messages.Add(new ConversationMessage(ConversationMessageRole.Assistant, message));
+        AddMessage(ConversationMessageRole.Assistant, message);
+    }
+
+    private void AddMessage(ConversationMessageRole role, string content)
+    {
+        var nextSequenceNumber = 0;
+        if (_messages.Count == 0)
+        {
+            //Todo: Remove and add logic to create summarized title after first message is sent and response is received.
+            Title = content.Length > 20 ? content[..20] + "..." : content;
+        }
+        else
+        {
+            nextSequenceNumber = checked(_messages.Max(message => message.SequenceNumber) + 1);
+        }
+        _messages.Add(new ConversationMessage(role, content, nextSequenceNumber));
     }
 }

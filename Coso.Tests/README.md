@@ -33,15 +33,19 @@ variables are set. See [integration test instructions](../Cosmo.IntegrationTests
 - API: request/response contracts, create/continue across requests, failed request
   retries, trimmed prompts with full persisted history, input-budget boundaries,
   validation problems, malformed bodies, trace IDs, and provider status mapping.
+  GET endpoints cover empty/populated summaries, persisted history and metadata,
+  invalid IDs, and a 404 problem response for unknown conversations.
 - Ollama contract: request shape, role mapping, Unicode, prompt token count mapping,
   malformed/empty responses, HTTP errors, and cancellation, using a fake transport.
 - Tokenizer: actual bundled tokenizer loading, special-token overhead, Gemma role
   and thinking formatting, whitespace, Unicode, and unsupported roles.
 - Configuration/DI: startup validation for URLs, model, prompts, connection strings,
   positive token budgets and output reservation smaller than the context window,
-  plus scoped EF repository/DbContext registration.
+  plus scoped ICosmoDbContext/DbContext registration.
 
-API tests replace model calls, token counting, and the database repository.
+API tests replace model calls and token counting, and use a scoped EF InMemory
+database shared across requests within each test. Query tests additionally cover
+sequence ordering, empty history, cancellation, and read-only materialization.
 Deterministic budget tests use a synthetic counter with known costs so boundary
 assertions are independent of tokenizer versions. Separate tests exercise the
 real tokenizer and optional live-server agreement.
@@ -50,14 +54,15 @@ real tokenizer and optional live-server agreement.
 
 Send/create accept empty and whitespace messages, reject null, and limit input to
 64,000 characters. Continuation has no application length validator. Missing
-conversations and oversized token-budget requests currently produce
+conversations during continuation and oversized token-budget requests currently produce
 `ArgumentException` and HTTP 500; the API tests explicitly document this behavior.
 
 Failed model/context requests leave history unchanged. Save failures propagate;
 a database-backed request must discard its scoped DbContext after failure.
-The in-memory repository is a shared-object test double and does not promise
-transactional rollback after a save failure.
+The recording test context uses EF InMemory and does not verify database
+transactions or rollback after a save failure.
 
 The tests do not claim concurrent-request serialization, idempotency, streaming,
-or strict chronological ordering when message timestamps tie. Kestrel's 512 KiB
+or concurrent sequence-number allocation. History is ordered by SequenceNumber,
+and a unique index prevents duplicate numbers within a conversation. Kestrel's 512 KiB
 request limit, TLS, and deployment-specific timeouts need server-level tests.
