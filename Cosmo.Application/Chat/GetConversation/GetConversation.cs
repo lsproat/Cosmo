@@ -14,9 +14,10 @@ public sealed class GetConversationHandler(ICosmoDbContext cosmoDbContext)
         CancellationToken cancellationToken)
     {
         var conversation = await cosmoDbContext.Conversations
-            .Include(convo => convo.Messages)
+            .AsNoTracking()
+            .Include(convo => convo.Messages.OrderBy(message => message.SequenceNumber))
             .FirstOrDefaultAsync(convo => convo.Id == request.ConversationId, cancellationToken)
-            ?? throw new ArgumentException($"Conversation with ID {request.ConversationId} not found.");
+            ?? throw new KeyNotFoundException($"Conversation with ID {request.ConversationId} not found.");
 
         return new GetConversationResult(conversation);
     }

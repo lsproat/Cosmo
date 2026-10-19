@@ -11,6 +11,24 @@ namespace Cosmo.Tests.Infrastructure;
 public class ConversationContextBuilderTests
 {
     [Fact]
+    public void Build_UnorderedHistory_SortsOnlyStoredMessagesAndKeepsPendingInputLast()
+    {
+        var conversation = new Conversation("First");
+        conversation.AddAssistantMessage("Answer");
+        conversation.AddUserMessage("Second");
+        conversation.AddAssistantMessage("Another answer");
+        var messages = Assert.IsType<List<ConversationMessage>>(conversation.Messages);
+        messages.Reverse();
+        var stored = messages.ToArray();
+
+        var context = CreateBuilder(new FixedTimeProvider()).Build(conversation, "Pending", CancellationToken.None);
+
+        Assert.Equal(ConversationMessageRole.System, context[0].Role);
+        Assert.Equal(new[] { "First", "Answer", "Second", "Another answer", "Pending" }, context.Skip(1).Select(message => message.Content));
+        Assert.Equal(stored, conversation.Messages);
+    }
+
+    [Fact]
     public void Build_PrependsConfiguredPromptAndLocalDateAndTime()
     {
         var previousCulture = CultureInfo.CurrentCulture;

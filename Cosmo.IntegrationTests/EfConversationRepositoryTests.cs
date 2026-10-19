@@ -95,13 +95,12 @@ public class EfConversationRepositoryTests
         var conversation = new Conversation("Last chronologically");
         conversation.AddAssistantMessage("Tie one");
         conversation.AddUserMessage("Tie two");
-        conversation.Messages[0].SequenceNumber = 2;
-        conversation.Messages[1].SequenceNumber = 1;
-        conversation.Messages[2].SequenceNumber = 0;
         var start = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
         using (var context = new CosmoDbContext(options))
         {
             context.Conversations.Add(conversation);
+            for (var i = 0; i < 3; i++)
+                context.Entry(conversation.Messages[i]).Property(message => message.SequenceNumber).CurrentValue = 2 - i;
             context.Entry(conversation.Messages[0]).Property(message => message.CreatedAt).CurrentValue = start.AddSeconds(1);
             context.Entry(conversation.Messages[1]).Property(message => message.CreatedAt).CurrentValue = start;
             context.Entry(conversation.Messages[2]).Property(message => message.CreatedAt).CurrentValue = start;

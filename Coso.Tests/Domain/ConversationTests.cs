@@ -4,6 +4,20 @@ namespace Cosmo.Tests.Domain;
 
 public class ConversationTests
 {
+    [Theory]
+    [InlineData("", "")]
+    [InlineData("Short title", "Short title")]
+    [InlineData("12345678901234567890", "12345678901234567890")]
+    [InlineData("123456789012345678901", "12345678901234567890...")]
+    public void FirstMessage_SetsTitleWhichLaterMessagesPreserve(string input, string expected)
+    {
+        var conversation = new Conversation(input);
+        conversation.AddAssistantMessage("Reply");
+        conversation.AddUserMessage("Follow up");
+
+        Assert.Equal(expected, conversation.Title);
+    }
+
     [Fact]
     public void Constructor_EmptyConversation_HasIdentityButNoStoredSystemOrPendingMessage()
     {
@@ -51,7 +65,8 @@ public class ConversationTests
     public void AddMessage_ContinuesAfterHighestExistingSequenceNumber()
     {
         var conversation = new Conversation("Existing message");
-        conversation.Messages[0].SequenceNumber = 10;
+        var messages = Assert.IsType<List<ConversationMessage>>(conversation.Messages);
+        messages[0] = new ConversationMessage(ConversationMessageRole.User, "Existing message", 10);
         conversation.AddAssistantMessage("Next message");
         Assert.Equal(11, conversation.Messages[^1].SequenceNumber);
     }

@@ -13,10 +13,12 @@ public sealed class GetAllConversationsHandler(ICosmoDbContext cosmoDbContext)
         GetAllConversationsQuery request,
         CancellationToken cancellationToken)
     {
-        var conversationSummaries = await cosmoDbContext.Conversations.Select(conversation => new ConversationSummary(
+        var conversationSummaries = await cosmoDbContext.Conversations
+            .Select(conversation => new ConversationSummary(
                 conversation.Id,
                 conversation.Title,
-                conversation.CreatedAt)).ToArrayAsync(cancellationToken);
+                conversation.CreatedAt))
+            .ToArrayAsync(cancellationToken);
 
         return new GetAllConversationsResult(conversationSummaries);
     }

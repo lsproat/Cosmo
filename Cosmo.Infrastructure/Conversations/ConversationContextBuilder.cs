@@ -35,11 +35,8 @@ public sealed class ConversationContextBuilder(
         ConversationMessage[] conversationArray = [new(
                     ConversationMessageRole.System,
                     systemContext),
-                ..conversation.Messages, pendingUserMessage
+                ..conversation.Messages.OrderBy(message => message.SequenceNumber), pendingUserMessage
                 ];
-
-        // Ensure conversation array is ordered by ascending sequence number. This is important for trimming logic.
-        Array.Sort(conversationArray, (a, b) => a.SequenceNumber.CompareTo(b.SequenceNumber));
 
         // Check if last user message plus system prompt exceeds the input token limit.
         ConversationMessage[] minimumContextMessages = [conversationArray[0], pendingUserMessage];

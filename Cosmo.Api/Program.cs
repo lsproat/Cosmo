@@ -57,6 +57,8 @@ app.UseExceptionHandler(new ExceptionHandlerOptions
 {
     StatusCodeSelector = exception => exception switch
     {
+        KeyNotFoundException => StatusCodes.Status404NotFound,
+
         ModelProviderResponseException =>
             StatusCodes.Status502BadGateway,
 

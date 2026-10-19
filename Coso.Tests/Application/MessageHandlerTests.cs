@@ -3,7 +3,6 @@ using Cosmo.Application.Chat.ContinueConversation;
 using Cosmo.Application.Chat.CreateConversation;
 using Cosmo.Application.Chat.SendMessage;
 using Cosmo.Domain.Conversations;
-using Cosmo.Infrastructure.Conversations;
 using Cosmo.Tests.Support;
 
 namespace Cosmo.Tests.Application;
@@ -29,7 +28,7 @@ public class MessageHandlerTests
     [Fact]
     public async Task CreateConversation_BuildsContextAndStoresCompletedFirstTurn()
     {
-        var repository = new RecordingRepository();
+        using var repository = new RecordingDbContext();
         var context = new RecordingContextBuilder();
         var model = new StubModelProvider();
         using var cancellation = new CancellationTokenSource();
@@ -59,10 +58,10 @@ public class MessageHandlerTests
     [Fact]
     public async Task ContinueConversation_IncludesHistoryAndAppendsTurnsInOrder()
     {
-        var repository = new InMemoryConversationRepository();
+        using var repository = new RecordingDbContext();
         var conversation = new Conversation("First question");
         conversation.AddAssistantMessage("First answer");
-        repository.Add(conversation);
+        repository.Seed(conversation);
         var context = new RecordingContextBuilder();
         var model = new StubModelProvider();
         var handler = new ContinueConversationHandler(model, repository, context);
@@ -91,7 +90,8 @@ public class MessageHandlerTests
     {
         var model = new StubModelProvider();
         var context = new RecordingContextBuilder();
-        var handler = new ContinueConversationHandler(model, new InMemoryConversationRepository(), context);
+        using var repository = new RecordingDbContext();
+        var handler = new ContinueConversationHandler(model, repository, context);
 
         var exception = await Assert.ThrowsAsync<ArgumentException>(() => handler.Handle(
             new ContinueConversationCommand(Guid.Parse(id), "Hello"), CancellationToken.None));
@@ -109,7 +109,7 @@ public class MessageHandlerTests
         using var cancellation = new CancellationTokenSource();
         var failure = cancel ? (Exception)new OperationCanceledException(cancellation.Token) : new HttpRequestException("Unavailable");
         var model = new StubModelProvider { Respond = _ => Task.FromException<ModelResponse>(failure) };
-        var repository = new InMemoryConversationRepository();
+        using var repository = new RecordingDbContext();
         var context = new RecordingContextBuilder();
         var handler = new CreateConversationHandler(model, repository, context);
 
@@ -128,9 +128,9 @@ public class MessageHandlerTests
         using var cancellation = new CancellationTokenSource();
         var failure = cancel ? (Exception)new OperationCanceledException(cancellation.Token) : new HttpRequestException("Unavailable");
         var model = new StubModelProvider { Respond = _ => Task.FromException<ModelResponse>(failure) };
-        var repository = new InMemoryConversationRepository();
+        using var repository = new RecordingDbContext();
         var conversation = new Conversation("Original");
-        repository.Add(conversation);
+        repository.Seed(conversation);
         var handler = new ContinueConversationHandler(model, repository, new RecordingContextBuilder());
 
         var actual = await Record.ExceptionAsync(() => handler.Handle(
