@@ -45,7 +45,7 @@ public class MessageHandlerTests
         var result = await handler.Handle(new CreateConversationCommand("Hello"), cancellation.Token);
 
         var stored = Assert.IsType<Conversation>(repository.Get(result.ConversationId));
-        Assert.NotEqual(Guid.Empty, result.ConversationId);
+        Assert.True(result.ConversationId > 0);
         Assert.Equal("Model reply", result.Message);
         Assert.Equal(new[] { "Hello", "Model reply" }, stored.Messages.Select(x => x.Content));
         Assert.Equal(new[] { ConversationMessageRole.User, ConversationMessageRole.Assistant }, stored.Messages.Select(x => x.Role));
@@ -84,19 +84,19 @@ public class MessageHandlerTests
     }
 
     [Theory]
-    [InlineData("00000000-0000-0000-0000-000000000000")]
-    [InlineData("e0887dd3-a29f-49e9-8667-26ddb796df44")]
-    public async Task ContinueConversation_MissingId_ThrowsBeforeBuildingContextOrCallingModel(string id)
+    [InlineData(0)]
+    [InlineData(123)]
+    public async Task ContinueConversation_MissingId_ThrowsBeforeBuildingContextOrCallingModel(int id)
     {
         var model = new StubModelProvider();
         var context = new RecordingContextBuilder();
         using var repository = new RecordingDbContext();
         var handler = new ContinueConversationHandler(model, repository, context);
 
-        var exception = await Assert.ThrowsAsync<ArgumentException>(() => handler.Handle(
-            new ContinueConversationCommand(Guid.Parse(id), "Hello"), CancellationToken.None));
+        var exception = await Assert.ThrowsAsync<KeyNotFoundException>(() => handler.Handle(
+            new ContinueConversationCommand(id, "Hello"), CancellationToken.None));
 
-        Assert.Contains(id, exception.Message);
+        Assert.Contains(id.ToString(), exception.Message);
         Assert.Null(context.Conversation);
         Assert.Empty(model.Calls);
     }

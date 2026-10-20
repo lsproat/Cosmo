@@ -27,12 +27,13 @@ public class EfConversationRepositoryTests
         var options = CreateOptions();
         var conversation = new Conversation("Hello");
         conversation.AddAssistantMessage("Hi!");
-        var originalIds = conversation.Messages.Select(message => message.Id).ToArray();
+        int[] originalIds;
         using (var context = new CosmoDbContext(options))
         {
             var repository = new EfConversationRepository(context);
             repository.Add(conversation);
             await repository.SaveChangesAsync(CancellationToken.None);
+            originalIds = conversation.Messages.Select(message => message.Id).ToArray();
         }
 
         using (var context = new CosmoDbContext(options))

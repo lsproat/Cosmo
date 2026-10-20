@@ -3,6 +3,9 @@ using Cosmo.Infrastructure;
 using Cosmo.Infrastructure.Conversations;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Cosmo.Application.Abstractions;
+using Cosmo.Domain.Users;
+using Cosmo.Infrastructure.Users;
 
 namespace Cosmo.IntegrationTests;
 
@@ -10,6 +13,60 @@ namespace Cosmo.IntegrationTests;
 // foreign keys, transactions, and cascading deletes that EF InMemory cannot test.
 public class PostgresConversationRepositoryTests
 {
+    [PostgresIntegrationFact]
+    [Trait("Category", "Postgres")]
+    public async Task ConcurrentUserResolution_CreatesOneUserAndReturnsTheSameId()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        var identity = new ExternalUserIdentity("https://test.invalid/", "same-user");
+        var tasks = Enumerable.Range(0, 8).Select(async _ =>
+        {
+            await using var context = database.CreateContext();
+            return await new UserResolver(context).GetOrCreateUserIdAsync(identity, CancellationToken.None);
+        });
+        var ids = await Task.WhenAll(tasks);
+        Assert.True(Assert.Single(ids.Distinct()) > 0);
+        await using var verification = database.CreateContext();
+        Assert.Single(await verification.Users.ToListAsync());
+    }
+
+    [PostgresIntegrationFact]
+    [Trait("Category", "Postgres")]
+    public async Task UserConstraints_RejectDuplicateIdentityAndDeletingConversationOwner()
+    {
+        await using var database = await TestDatabase.CreateAsync();
+        int ownerId;
+        await using (var context = database.CreateContext())
+        {
+            var owner = new User("https://test.invalid/", "owner");
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+            ownerId = owner.Id;
+            context.Conversations.Add(new Conversation("Private") { UserId = ownerId });
+            await context.SaveChangesAsync();
+        }
+
+        await using (var context = database.CreateContext())
+        {
+            context.Users.Add(new User("https://test.invalid/", "owner"));
+            var error = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
+            var postgres = Assert.IsType<PostgresException>(error.InnerException);
+            Assert.Equal(PostgresErrorCodes.UniqueViolation, postgres.SqlState);
+            Assert.Equal("UQ_Users_ExternalIssuer_ExternalSubject", postgres.ConstraintName);
+        }
+
+        await using (var context = database.CreateContext())
+        {
+            var error = await Assert.ThrowsAsync<PostgresException>(() =>
+                context.Users.Where(user => user.Id == ownerId).ExecuteDeleteAsync());
+            Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, error.SqlState);
+        }
+
+        await using var verification = database.CreateContext();
+        Assert.Single(await verification.Users.ToListAsync());
+        Assert.Single(await verification.Conversations.ToListAsync());
+    }
+
     [PostgresIntegrationFact]
     [Trait("Category", "Postgres")]
     public async Task SaveReloadContinueAndDelete_PreservesHistoryAndCascadesMessages()
@@ -22,6 +79,10 @@ public class PostgresConversationRepositoryTests
         var start = new DateTimeOffset(2030, 1, 1, 0, 0, 0, TimeSpan.Zero);
         await using (var context = database.CreateContext())
         {
+            var owner = new Cosmo.Domain.Users.User("https://test.invalid/", "owner");
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+            conversation.UserId = owner.Id;
             var repository = new EfConversationRepository(context);
             repository.Add(conversation);
             context.Entry(conversation.Messages[0]).Property(message => message.CreatedAt).CurrentValue = start;
@@ -80,12 +141,15 @@ public class PostgresConversationRepositoryTests
         await using var database = await TestDatabase.CreateAsync();
         await using (var context = database.CreateContext())
         {
-            var conversation = new Conversation("Valid question");
+            var owner = new Cosmo.Domain.Users.User("https://test.invalid/", "owner");
+            context.Users.Add(owner);
+            await context.SaveChangesAsync();
+            var conversation = new Conversation("Valid question") { UserId = owner.Id };
             conversation.AddAssistantMessage("Valid answer");
             context.Conversations.Add(conversation);
             var orphan = new ConversationMessage(ConversationMessageRole.User, "Missing conversation");
             context.ConversationMessages.Add(orphan);
-            context.Entry(orphan).Property<Guid>("ConversationId").CurrentValue = Guid.NewGuid();
+            context.Entry(orphan).Property<int>("ConversationId").CurrentValue = int.MaxValue;
 
             var exception = await Assert.ThrowsAsync<DbUpdateException>(() => context.SaveChangesAsync());
             Assert.Equal(PostgresErrorCodes.ForeignKeyViolation, Assert.IsType<PostgresException>(exception.InnerException).SqlState);
