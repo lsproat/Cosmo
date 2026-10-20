@@ -18,7 +18,7 @@ variables are set. See [integration test instructions](../Cosmo.IntegrationTests
 
 ## Coverage
 
-- Domain: empty and initial-message conversations, identities, roles, append order,
+- Domain: empty and initial-message conversations, IDs awaiting persistence, roles, append order,
   and preserved timestamps.
 - Context selection: fixed clock/timezone, refreshed system instructions, pending
   input, immutable stored history, exact input limit, one-token overflow,
@@ -35,16 +35,26 @@ variables are set. See [integration test instructions](../Cosmo.IntegrationTests
   validation problems, malformed bodies, trace IDs, and provider status mapping.
   GET endpoints cover empty/populated summaries, persisted history and metadata,
   invalid IDs, and a 404 problem response for unknown conversations.
+- Authentication and ownership: anonymous/failed authentication, missing subject,
+  server-assigned ownership despite a supplied user ID, and cross-user list/read/write
+  isolation through the real MediatR pipeline and local user resolver.
+- User resolution: identity lookup/provisioning across scopes, distinct issuer/subject
+  pairs, cancellation, supplied ID replacement, and stopping handlers on resolution failure.
+- Swagger: generated OAuth definition, PKCE and audience UI settings, and absence
+  of documentation endpoints outside Development.
 - Ollama contract: request shape, role mapping, Unicode, prompt token count mapping,
   malformed/empty responses, HTTP errors, and cancellation, using a fake transport.
 - Tokenizer: actual bundled tokenizer loading, special-token overhead, Gemma role
   and thinking formatting, whitespace, Unicode, and unsupported roles.
 - Configuration/DI: startup validation for URLs, model, prompts, connection strings,
   positive token budgets and output reservation smaller than the context window,
+  Auth0 required values, Development-only Swagger client validation,
   plus scoped ICosmoDbContext/DbContext registration.
 
 API tests replace model calls and token counting, and use a scoped EF InMemory
-database shared across requests within each test. Query tests additionally cover
+database shared across requests within each test. A test-only authentication scheme
+supplies identities without contacting Auth0; it does not verify JWT signatures,
+expiry/audience validation, browser redirects, or live token exchange. Query tests additionally cover
 sequence ordering, empty history, cancellation, and read-only materialization.
 Deterministic budget tests use a synthetic counter with known costs so boundary
 assertions are independent of tokenizer versions. Separate tests exercise the
@@ -53,9 +63,10 @@ real tokenizer and optional live-server agreement.
 ## Current behavior and limits
 
 Send/create accept empty and whitespace messages, reject null, and limit input to
-64,000 characters. Continuation has no application length validator. Missing
-conversations during continuation and oversized token-budget requests currently produce
-`ArgumentException` and HTTP 500; the API tests explicitly document this behavior.
+64,000 characters. Continuation has no application length validator. Missing or
+inaccessible conversations return HTTP 404. Non-integer conversation routes also
+return 404 because of the route constraint. Oversized token-budget requests currently
+produce `ArgumentException` and HTTP 500; API tests document this behavior.
 
 Failed model/context requests leave history unchanged. Save failures propagate;
 a database-backed request must discard its scoped DbContext after failure.

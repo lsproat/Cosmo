@@ -74,6 +74,7 @@ internal sealed class RecordingDbContext : ICosmoDbContext, IDisposable
     private readonly CosmoDbContext _context = new(
         new DbContextOptionsBuilder<CosmoDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
+    public DbSet<Cosmo.Domain.Users.User> Users => _context.Users;
     public DbSet<Conversation> Conversations => _context.Conversations;
     public DbSet<ConversationMessage> ConversationMessages => _context.ConversationMessages;
     public int AddCalls { get; private set; }
@@ -89,7 +90,7 @@ internal sealed class RecordingDbContext : ICosmoDbContext, IDisposable
         };
     }
 
-    public Conversation? Get(Guid id) => Conversations.Local.SingleOrDefault(c => c.Id == id);
+    public Conversation? Get(int id) => Conversations.Local.SingleOrDefault(c => c.Id == id);
     public void Seed(Conversation conversation)
     {
         Conversations.Add(conversation);

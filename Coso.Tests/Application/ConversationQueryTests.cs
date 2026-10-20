@@ -58,7 +58,7 @@ public class ConversationQueryTests
             if (list)
                 await new GetAllConversationsHandler(db).Handle(new(), cancellation.Token);
             else
-                await new GetConversationHandler(db).Handle(new(Guid.NewGuid()), cancellation.Token);
+                await new GetConversationHandler(db).Handle(new(int.MaxValue), cancellation.Token);
         });
     }
 

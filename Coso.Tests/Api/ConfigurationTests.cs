@@ -3,6 +3,7 @@ using Cosmo.Infrastructure.Configuration;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Cosmo.Tests.Support;
 
 namespace Cosmo.Tests.Api;
 
@@ -50,6 +51,12 @@ public class ConfigurationTests
     [InlineData("ConnectionStrings:CosmoDatabase", null)]
     [InlineData("ConnectionStrings:CosmoDatabase", "")]
     [InlineData("ConnectionStrings:CosmoDatabase", " \t\n")]
+    [InlineData("Auth0:Authority", null)]
+    [InlineData("Auth0:Authority", "")]
+    [InlineData("Auth0:Authority", " \t\n")]
+    [InlineData("Auth0:Audience", null)]
+    [InlineData("Auth0:Audience", "")]
+    [InlineData("Auth0:Audience", " \t\n")]
     public void Configuration_MissingOrBlankRequiredValue_FailsAtStartup(string key, string? value)
     {
         using var services = BuildServices(key, value);
@@ -73,7 +80,32 @@ public class ConfigurationTests
         Assert.Contains(exception.Failures, failure => failure.Contains(key));
     }
 
-    private static ServiceProvider BuildServices(string key, string? value)
+    [Theory]
+    [InlineData("Development", true)]
+    [InlineData("Production", false)]
+    [InlineData("Staging", false)]
+    public void SwaggerClientId_IsRequiredOnlyInDevelopment(string environment, bool required)
+    {
+        using var services = BuildServices("Swagger:ClientId", null, environment);
+        var validate = () => services.GetRequiredService<IStartupValidator>().Validate();
+        if (required)
+        {
+            var exception = Assert.Throws<OptionsValidationException>(validate);
+            Assert.Contains(exception.Failures, failure => failure.Contains("Swagger:ClientId"));
+        }
+        else
+            validate();
+    }
+
+    [Fact]
+    public void SwaggerClientId_ValidDevelopmentSettingsPassStartupValidation()
+    {
+        using var services = BuildServices("Swagger:ClientId", "test-client", "Development");
+        services.GetRequiredService<IStartupValidator>().Validate();
+        Assert.Equal("test-client", services.GetRequiredService<IOptions<SwaggerOptions>>().Value.ClientId);
+    }
+
+    private static ServiceProvider BuildServices(string key, string? value, string environment = "Production")
     {
         var values = new Dictionary<string, string?>
         {
@@ -82,11 +114,13 @@ public class ConfigurationTests
             ["Ollama:ContextWindowTokens"] = "1000",
             ["Ollama:ReservedOutputTokens"] = "100",
             ["ConnectionStrings:CosmoDatabase"] = "Host=localhost;Database=cosmo_test;Username=unused",
-            ["Cosmo:BaseSystemPrompt"] = "Test instructions"
+            ["Cosmo:BaseSystemPrompt"] = "Test instructions",
+            ["Auth0:Authority"] = "https://test.auth0.invalid/",
+            ["Auth0:Audience"] = "https://cosmo-test.invalid"
         };
         if (value is null) values.Remove(key);
         else values[key] = value;
         var configuration = new ConfigurationBuilder().AddInMemoryCollection(values).Build();
-        return new ServiceCollection().AddCosmoConfiguration(configuration).BuildServiceProvider();
+        return new ServiceCollection().AddCosmoConfiguration(configuration, new TestHostEnvironment(environment)).BuildServiceProvider();
     }
 }

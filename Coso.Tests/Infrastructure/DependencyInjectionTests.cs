@@ -4,6 +4,7 @@ using Cosmo.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
+using Cosmo.Tests.Support;
 
 namespace Cosmo.Tests.Infrastructure;
 
@@ -41,7 +42,7 @@ public class DependencyInjectionTests
             ["Ollama:ReservedOutputTokens"] = "100",
             ["Cosmo:BaseSystemPrompt"] = "Test"
         }).Build();
-        return new ServiceCollection().AddCosmoConfiguration(configuration).AddInfrastructure(configuration)
+        return new ServiceCollection().AddCosmoConfiguration(configuration, new TestHostEnvironment()).AddInfrastructure(configuration)
             .BuildServiceProvider(new ServiceProviderOptions { ValidateScopes = true, ValidateOnBuild = true });
     }
 }

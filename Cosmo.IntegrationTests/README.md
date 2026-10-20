@@ -6,7 +6,8 @@ The default run executes EF model and repository tests without external services
 dotnet test Cosmo.IntegrationTests/Cosmo.IntegrationTests.csproj
 ```
 
-These validate mappings, graph tracking, explicit saves, reloads, cancelled saves,
+These validate integer identity and ownership mappings, unique external identity keys,
+temporary key graph tracking, explicit saves, reloads, cancelled saves,
 discarded changes, and sequence-number sorting. Repository tests use EF's
 InMemory provider. They do not verify PostgreSQL SQL, constraints, or transactions.
 
@@ -28,10 +29,12 @@ schema behind.
 
 Coverage includes read-only property materialization, ordered message loading,
 saving a continuation with successive sequence numbers, discarding unsaved changes, database cascading deletion,
-foreign-key enforcement, and atomic rollback of a failed save. Fixed distinct
+foreign-key enforcement, atomic rollback of a failed save, concurrent user
+provisioning, unique issuer/subject enforcement, and restrictions on deleting an owner.
+Fixed distinct
 timestamps make ordering assertions independent of clock precision.
 
-Without `COSMO_POSTGRES_TEST_CONNECTION_STRING`, both PostgreSQL tests are skipped.
+Without `COSMO_POSTGRES_TEST_CONNECTION_STRING`, all four PostgreSQL tests are skipped.
 
 ## Live Ollama token counts
 

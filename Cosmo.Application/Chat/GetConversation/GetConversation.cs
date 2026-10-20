@@ -4,7 +4,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cosmo.Application.Chat.GetConversation;
 
-public record GetConversationQuery(Guid ConversationId) : IRequest<GetConversationResult>;
+public record GetConversationQuery(int ConversationId) : IRequest<GetConversationResult>, IUserRequest
+{
+    public int UserId { get; set; }
+}
 
 public sealed class GetConversationHandler(ICosmoDbContext cosmoDbContext)
     : IRequestHandler<GetConversationQuery, GetConversationResult>
@@ -16,7 +19,7 @@ public sealed class GetConversationHandler(ICosmoDbContext cosmoDbContext)
         var conversation = await cosmoDbContext.Conversations
             .AsNoTracking()
             .Include(convo => convo.Messages.OrderBy(message => message.SequenceNumber))
-            .FirstOrDefaultAsync(convo => convo.Id == request.ConversationId, cancellationToken)
+            .FirstOrDefaultAsync(convo => convo.UserId == request.UserId && convo.Id == request.ConversationId, cancellationToken)
             ?? throw new KeyNotFoundException($"Conversation with ID {request.ConversationId} not found.");
 
         return new GetConversationResult(conversation);

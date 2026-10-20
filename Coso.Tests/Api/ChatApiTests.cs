@@ -17,11 +17,112 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
+using Microsoft.AspNetCore.Authentication;
 
 namespace Cosmo.Tests.Api;
 
 public class ChatApiTests
 {
+    [Fact]
+    public async Task Swagger_Development_DescribesOAuthAndConfiguresPkceAndAudience()
+    {
+        using var factory = new ChatApiFactory { EnvironmentName = "Development" };
+        using var client = factory.CreateHttpsClient(null);
+        using var response = await client.GetAsync("/openapi/v1.json");
+        response.EnsureSuccessStatusCode();
+        using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        var scheme = json.RootElement.GetProperty("components").GetProperty("securitySchemes").GetProperty("Auth0");
+        Assert.Equal("oauth2", scheme.GetProperty("type").GetString());
+        var flow = scheme.GetProperty("flows").GetProperty("authorizationCode");
+        Assert.Equal($"{TestAuthenticationHandler.Issuer}authorize", flow.GetProperty("authorizationUrl").GetString());
+        Assert.Equal($"{TestAuthenticationHandler.Issuer}oauth/token", flow.GetProperty("tokenUrl").GetString());
+        var security = json.RootElement.GetProperty("paths").GetProperty("/api/chat/conversations")
+            .GetProperty("get").GetProperty("security");
+        Assert.Contains(security.EnumerateArray(), item => item.TryGetProperty("Auth0", out _));
+
+        var initializer = await client.GetStringAsync("/swagger/index.js");
+        Assert.Contains("test-swagger-client", initializer);
+        Assert.Contains("\"usePkceWithAuthorizationCodeGrant\":true", initializer);
+        Assert.Contains("https://cosmo-test.invalid", initializer);
+    }
+
+    [Theory]
+    [InlineData("Production")]
+    [InlineData("Staging")]
+    public async Task Swagger_OutsideDevelopment_IsNotExposedOrRequired(string environment)
+    {
+        using var factory = new ChatApiFactory { EnvironmentName = environment };
+        using var client = factory.CreateHttpsClient(null);
+        using var document = await client.GetAsync("/openapi/v1.json");
+        using var ui = await client.GetAsync("/swagger/index.html");
+        Assert.Equal(HttpStatusCode.NotFound, document.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, ui.StatusCode);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("invalid")]
+    [InlineData("missing-subject")]
+    public async Task GetConversations_WithoutValidUser_ReturnsUnauthorized(string? subject)
+    {
+        using var factory = new ChatApiFactory();
+        using var client = factory.CreateHttpsClient(subject);
+        using var response = await client.GetAsync("/api/chat/conversations");
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Empty(factory.Model.Calls);
+        using var scope = factory.Services.CreateScope();
+        Assert.Empty(scope.ServiceProvider.GetRequiredService<CosmoDbContext>().Users);
+    }
+
+    [Theory]
+    [InlineData("/api/chat/sendMessage")]
+    [InlineData("/api/chat/conversation")]
+    [InlineData("/api/chat/conversation/1")]
+    public async Task Post_WithoutAuthentication_DoesNotInvokeModel(string route)
+    {
+        using var factory = new ChatApiFactory();
+        using var client = factory.CreateHttpsClient(null);
+        using var response = await client.PostAsJsonAsync(route, new { message = "Hello" });
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Empty(factory.Model.Calls);
+    }
+
+    [Fact]
+    public async Task Conversations_AreIsolatedAcrossAuthenticatedUsers()
+    {
+        using var factory = new ChatApiFactory();
+        using var alice = factory.CreateHttpsClient("alice");
+        using var bob = factory.CreateHttpsClient("bob");
+
+        // A caller-supplied owner cannot override the server's resolved identity.
+        using var created = await alice.PostAsJsonAsync("/api/chat/conversation",
+            new { message = "Alice's private question", userId = 999 });
+        created.EnsureSuccessStatusCode();
+        using var json = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
+        var id = json.RootElement.GetProperty("conversationId").GetInt32();
+
+        using var bobList = await bob.GetAsync("/api/chat/conversations");
+        bobList.EnsureSuccessStatusCode();
+        using var listJson = JsonDocument.Parse(await bobList.Content.ReadAsStringAsync());
+        Assert.Empty(listJson.RootElement.GetProperty("conversations").EnumerateArray());
+
+        using var deniedRead = await bob.GetAsync($"/api/chat/conversation/{id}");
+        using var deniedWrite = await bob.PostAsJsonAsync($"/api/chat/conversation/{id}",
+            new { message = "Unauthorized continuation" });
+        Assert.Equal(HttpStatusCode.NotFound, deniedRead.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, deniedWrite.StatusCode);
+        Assert.Single(factory.Model.Calls);
+        Assert.Equal(2, factory.Get(id)!.Messages.Count);
+
+        using var ownerRead = await alice.GetAsync($"/api/chat/conversation/{id}");
+        ownerRead.EnsureSuccessStatusCode();
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<CosmoDbContext>();
+        var owner = Assert.Single(db.Users, user => user.ExternalSubject == "alice");
+        Assert.Equal(owner.Id, factory.Get(id)!.UserId);
+        Assert.Equal(2, db.Users.Count());
+    }
+
     [Fact]
     public async Task GetConversations_EmptyDatabase_ReturnsEmptyArrayWithoutCallingModel()
     {
@@ -55,7 +156,7 @@ public class ChatApiTests
         Assert.Equal(2, summaries.Length);
         foreach (var expected in new[] { first, second })
         {
-            var summary = Assert.Single(summaries, item => item.GetProperty("id").GetGuid() == expected.Id);
+            var summary = Assert.Single(summaries, item => item.GetProperty("id").GetInt32() == expected.Id);
             Assert.Equal(expected.Title, summary.GetProperty("title").GetString());
             Assert.Equal(expected.CreatedAt, summary.GetProperty("createdAt").GetDateTimeOffset());
             Assert.Equal(3, summary.EnumerateObject().Count());
@@ -71,7 +172,7 @@ public class ChatApiTests
         using var created = await client.PostAsJsonAsync("/api/chat/conversation", new { message = "First question" });
         created.EnsureSuccessStatusCode();
         using var createJson = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
-        var id = createJson.RootElement.GetProperty("conversationId").GetGuid();
+        var id = createJson.RootElement.GetProperty("conversationId").GetInt32();
         using var continued = await client.PostAsJsonAsync($"/api/chat/conversation/{id}", new { message = "Next question" });
         continued.EnsureSuccessStatusCode();
         var stored = factory.Get(id)!;
@@ -81,7 +182,7 @@ public class ChatApiTests
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var conversation = json.RootElement.GetProperty("conversation");
-        Assert.Equal(id, conversation.GetProperty("id").GetGuid());
+        Assert.Equal(id, conversation.GetProperty("id").GetInt32());
         Assert.Equal("First question", conversation.GetProperty("title").GetString());
         Assert.Equal(stored.CreatedAt, conversation.GetProperty("createdAt").GetDateTimeOffset());
         var messages = conversation.GetProperty("messages").EnumerateArray().ToArray();
@@ -89,7 +190,7 @@ public class ChatApiTests
             messages.Select(message => message.GetProperty("content").GetString()));
         Assert.Equal(new[] { 0, 1, 2, 3 }, messages.Select(message => message.GetProperty("sequenceNumber").GetInt32()));
         Assert.Equal(new[] { 1, 2, 1, 2 }, messages.Select(message => message.GetProperty("role").GetInt32()));
-        Assert.Equal(stored.Messages.Select(message => message.Id), messages.Select(message => message.GetProperty("id").GetGuid()));
+        Assert.Equal(stored.Messages.Select(message => message.Id), messages.Select(message => message.GetProperty("id").GetInt32()));
         Assert.Equal(stored.Messages.Select(message => message.CreatedAt), messages.Select(message => message.GetProperty("createdAt").GetDateTimeOffset()));
         Assert.Equal(2, factory.Model.Calls.Count);
     }
@@ -100,7 +201,7 @@ public class ChatApiTests
         using var factory = new ChatApiFactory();
         using var client = factory.CreateHttpsClient();
 
-        using var response = await client.GetAsync($"/api/chat/conversation/{Guid.NewGuid()}");
+        using var response = await client.GetAsync($"/api/chat/conversation/{int.MaxValue}");
 
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Equal("application/problem+json", response.Content.Headers.ContentType!.MediaType);
@@ -111,14 +212,14 @@ public class ChatApiTests
     }
 
     [Fact]
-    public async Task GetConversation_InvalidGuid_ReturnsBadRequestWithoutCallingModel()
+    public async Task GetConversation_InvalidInteger_ReturnsNotFoundWithoutCallingModel()
     {
         using var factory = new ChatApiFactory();
         using var client = factory.CreateHttpsClient();
 
-        using var response = await client.GetAsync("/api/chat/conversation/not-a-guid");
+        using var response = await client.GetAsync("/api/chat/conversation/not-an-integer");
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Empty(factory.Model.Calls);
     }
 
@@ -193,8 +294,8 @@ public class ChatApiTests
         using var created = await client.PostAsJsonAsync("/api/chat/conversation", new { message = "First" });
         Assert.Equal(HttpStatusCode.OK, created.StatusCode);
         using var createJson = JsonDocument.Parse(await created.Content.ReadAsStringAsync());
-        var id = createJson.RootElement.GetProperty("conversationId").GetGuid();
-        Assert.NotEqual(Guid.Empty, id);
+        var id = createJson.RootElement.GetProperty("conversationId").GetInt32();
+        Assert.True(id > 0);
         Assert.Equal("Model reply", createJson.RootElement.GetProperty("message").GetString());
 
         using var continued = await client.PostAsJsonAsync($"/api/chat/conversation/{id}", new { message = "Second" });
@@ -247,26 +348,26 @@ public class ChatApiTests
     }
 
     [Fact]
-    public async Task ContinueConversation_InvalidGuid_ReturnsBadRequest()
+    public async Task ContinueConversation_InvalidInteger_ReturnsNotFound()
     {
         using var factory = new ChatApiFactory();
         using var client = factory.CreateHttpsClient();
 
-        using var response = await client.PostAsJsonAsync("/api/chat/conversation/not-a-guid", new { message = "Hello" });
+        using var response = await client.PostAsJsonAsync("/api/chat/conversation/not-an-integer", new { message = "Hello" });
 
-        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Empty(factory.Model.Calls);
     }
 
     [Fact]
-    public async Task ContinueConversation_UnknownId_CurrentlyReturnsInternalServerError()
+    public async Task ContinueConversation_UnknownId_ReturnsNotFound()
     {
         using var factory = new ChatApiFactory();
         using var client = factory.CreateHttpsClient();
 
-        using var response = await client.PostAsJsonAsync($"/api/chat/conversation/{Guid.NewGuid()}", new { message = "Hello" });
+        using var response = await client.PostAsJsonAsync($"/api/chat/conversation/{int.MaxValue}", new { message = "Hello" });
 
-        Assert.Equal(HttpStatusCode.InternalServerError, response.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         Assert.Empty(factory.Model.Calls);
     }
 
@@ -358,16 +459,20 @@ public class ChatApiTests
     private sealed class ChatApiFactory : WebApplicationFactory<ChatController>
     {
         private readonly string _databaseName = Guid.NewGuid().ToString();
+        public string EnvironmentName { get; init; } = "Testing";
 
-        public void Seed(Conversation conversation)
+        public void Seed(Conversation conversation, string subject = "alice")
         {
             using var scope = Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<CosmoDbContext>();
+            conversation.UserId = scope.ServiceProvider.GetRequiredService<IUserResolver>()
+                .GetOrCreateUserIdAsync(new(TestAuthenticationHandler.Issuer, subject), CancellationToken.None)
+                .GetAwaiter().GetResult();
             db.Conversations.Add(conversation);
             db.SaveChanges();
         }
 
-        public Conversation? Get(Guid id)
+        public Conversation? Get(int id)
         {
             using var scope = Services.CreateScope();
             return scope.ServiceProvider.GetRequiredService<CosmoDbContext>().Conversations
@@ -377,15 +482,21 @@ public class ChatApiTests
         public StubModelProvider Model { get; } = new();
         public ITokenCounter Counter { get; set; } = new StubTokenCounter();
 
-        public HttpClient CreateHttpsClient() => CreateClient(new WebApplicationFactoryClientOptions
+        public HttpClient CreateHttpsClient(string? subject = "alice")
         {
-            BaseAddress = new Uri("https://localhost"),
-            AllowAutoRedirect = false
-        });
+            var client = CreateClient(new WebApplicationFactoryClientOptions
+            {
+                BaseAddress = new Uri("https://localhost"),
+                AllowAutoRedirect = false
+            });
+            if (subject is not null)
+                client.DefaultRequestHeaders.Add("X-Test-Subject", subject);
+            return client;
+        }
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
-            builder.UseEnvironment("Testing");
+            builder.UseEnvironment(EnvironmentName);
             builder.ConfigureLogging(logging => logging.ClearProviders());
             builder.ConfigureAppConfiguration((_, configuration) =>
             {
@@ -397,11 +508,20 @@ public class ChatApiTests
                     ["Ollama:ContextWindowTokens"] = "1000",
                     ["Ollama:ReservedOutputTokens"] = "100",
                     ["ConnectionStrings:CosmoDatabase"] = "Host=localhost;Database=cosmo_test;Username=unused",
-                    ["Cosmo:BaseSystemPrompt"] = "API test instructions"
+                    ["Cosmo:BaseSystemPrompt"] = "API test instructions",
+                    ["Auth0:Authority"] = TestAuthenticationHandler.Issuer,
+                    ["Auth0:Audience"] = "https://cosmo-test.invalid",
+                    ["Swagger:ClientId"] = EnvironmentName == "Development" ? "test-swagger-client" : null
                 });
             });
             builder.ConfigureTestServices(services =>
             {
+                services.AddAuthentication(options =>
+                {
+                    options.DefaultAuthenticateScheme = TestAuthenticationHandler.SchemeName;
+                    options.DefaultChallengeScheme = TestAuthenticationHandler.SchemeName;
+                }).AddScheme<AuthenticationSchemeOptions, TestAuthenticationHandler>(
+                    TestAuthenticationHandler.SchemeName, _ => { });
                 services.RemoveAll<IModelProvider>();
                 services.AddSingleton<IModelProvider>(Model);
                 services.RemoveAll<ICosmoDbContext>();

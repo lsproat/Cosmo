@@ -135,7 +135,7 @@ public class ConversationPersistenceTests
     }
 
     private static async Task Invoke(bool continuing, RecordingDbContext repository, IModelProvider model,
-        IConversationContextBuilder context, Guid id, CancellationToken token)
+        IConversationContextBuilder context, int id, CancellationToken token)
     {
         if (continuing)
             await new ContinueConversationHandler(model, repository, context).Handle(new(id, "Pending"), token);

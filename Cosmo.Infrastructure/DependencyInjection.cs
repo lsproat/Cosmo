@@ -1,5 +1,6 @@
 ﻿using Cosmo.Application.Abstractions;
 using Cosmo.Infrastructure.Configuration;
+using Cosmo.Infrastructure.Users;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -20,7 +21,7 @@ public static class DependencyInjection
             options.UseNpgsql(connectionStrings.CosmoDatabase);
         });
 
-        //services.AddScoped<IConversationRepository, EfConversationRepository>();
+        services.AddScoped<IUserResolver, UserResolver>();
 
         return services;
     }

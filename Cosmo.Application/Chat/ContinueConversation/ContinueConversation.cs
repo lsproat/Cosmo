@@ -4,7 +4,10 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Cosmo.Application.Chat.ContinueConversation;
 
-public record ContinueConversationCommand(Guid ConversationId, string Message) : IRequest<ContinueConversationResult>;
+public record ContinueConversationCommand(int ConversationId, string Message) : IRequest<ContinueConversationResult>, IUserRequest
+{
+    public int UserId { get; set; }
+}
 
 public sealed class ContinueConversationHandler(
     IModelProvider modelProvider,
@@ -19,8 +22,8 @@ public sealed class ContinueConversationHandler(
         // Todo: Customize exception type for not found. Maybe a NotFoundException.
         var conversation = await cosmoDbContext.Conversations
             .Include(convo => convo.Messages)
-            .FirstOrDefaultAsync(convo => convo.Id == request.ConversationId, cancellationToken)
-            ?? throw new ArgumentException($"Conversation with ID {request.ConversationId} not found.");
+            .FirstOrDefaultAsync(convo => convo.UserId == request.UserId && convo.Id == request.ConversationId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Conversation with ID {request.ConversationId} not found.");
 
         var context = conversationContextBuilder.Build(conversation, request.Message, cancellationToken);
 

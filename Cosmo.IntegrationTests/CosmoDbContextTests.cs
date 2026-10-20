@@ -2,11 +2,36 @@ using Cosmo.Domain.Conversations;
 using Cosmo.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Cosmo.Domain.Users;
 
 namespace Cosmo.IntegrationTests;
 
 public class CosmoDbContextTests
 {
+    [Fact]
+    public void Model_MapsIntegerUserOwnershipAndUniqueExternalIdentity()
+    {
+        using var context = CreateContext();
+        var userType = context.Model.FindEntityType(typeof(User))!;
+        var conversationType = context.Model.FindEntityType(typeof(Conversation))!;
+        Assert.Equal(typeof(int), userType.FindProperty(nameof(User.Id))!.ClrType);
+        Assert.Equal(ValueGenerated.OnAdd, userType.FindProperty(nameof(User.Id))!.ValueGenerated);
+        var identityKey = Assert.Single(userType.GetKeys(), key => !key.IsPrimaryKey());
+        Assert.Equal(new[] { nameof(User.ExternalIssuer), nameof(User.ExternalSubject) },
+            identityKey.Properties.Select(property => property.Name));
+        Assert.Equal("UQ_Users_ExternalIssuer_ExternalSubject", identityKey.GetName());
+        var ownership = Assert.Single(conversationType.GetForeignKeys());
+        Assert.Equal(typeof(User), ownership.PrincipalEntityType.ClrType);
+        Assert.Equal(typeof(int), Assert.Single(ownership.Properties).ClrType);
+        Assert.True(ownership.IsRequired);
+        Assert.Equal(DeleteBehavior.Restrict, ownership.DeleteBehavior);
+
+        var script = context.Database.GenerateCreateScript();
+        Assert.Contains("GENERATED ALWAYS AS IDENTITY", script);
+        Assert.Contains("ON DELETE RESTRICT", script);
+        Assert.DoesNotContain("uuid", script);
+    }
+
     [Fact]
     public void Model_MapsReadOnlyMessagePropertiesAndBackingCollection()
     {
@@ -26,8 +51,8 @@ public class CosmoDbContextTests
             Assert.NotNull(property.FieldInfo);
         }
 
-        Assert.Equal(ValueGenerated.Never, messageType.FindProperty("Id")!.ValueGenerated);
-        Assert.Equal(ValueGenerated.Never, conversationType.FindProperty("Id")!.ValueGenerated);
+        Assert.Equal(ValueGenerated.OnAdd, messageType.FindProperty("Id")!.ValueGenerated);
+        Assert.Equal(ValueGenerated.OnAdd, conversationType.FindProperty("Id")!.ValueGenerated);
         var foreignKey = Assert.Single(messageType.GetForeignKeys());
         Assert.True(foreignKey.IsRequired);
         Assert.Equal(DeleteBehavior.Cascade, foreignKey.DeleteBehavior);
@@ -39,7 +64,7 @@ public class CosmoDbContextTests
         Assert.Contains("CREATE TABLE \"ConversationMessages\"", script);
         Assert.Contains("ON DELETE CASCADE", script);
         var messageTableSql = script[script.IndexOf("CREATE TABLE \"ConversationMessages\"", StringComparison.Ordinal)..];
-        var idPosition = messageTableSql.IndexOf("\"Id\" uuid", StringComparison.Ordinal);
+        var idPosition = messageTableSql.IndexOf("\"Id\" integer", StringComparison.Ordinal);
         var sequencePosition = messageTableSql.IndexOf("\"SequenceNumber\" integer", StringComparison.Ordinal);
         var rolePosition = messageTableSql.IndexOf("\"Role\" integer", StringComparison.Ordinal);
         Assert.True(idPosition >= 0 && idPosition < sequencePosition && sequencePosition < rolePosition);
@@ -49,7 +74,7 @@ public class CosmoDbContextTests
     }
 
     [Fact]
-    public void Add_TracksExchangeWithExistingIdsAndConversationForeignKey()
+    public void Add_TracksExchangeWithTemporaryGeneratedKeysAndConversationForeignKey()
     {
         using var context = CreateContext();
         var conversation = new Conversation();
@@ -65,8 +90,9 @@ public class CosmoDbContextTests
         {
             var entry = context.Entry(message);
             Assert.Equal(EntityState.Added, entry.State);
-            Assert.Equal(conversation.Id, entry.Property<Guid>("ConversationId").CurrentValue);
-            Assert.False(entry.Property(message => message.Id).IsTemporary);
+            Assert.Equal(context.Entry(conversation).Property(c => c.Id).CurrentValue,
+                entry.Property<int>("ConversationId").CurrentValue);
+            Assert.True(entry.Property(message => message.Id).IsTemporary);
         }
     }
 
