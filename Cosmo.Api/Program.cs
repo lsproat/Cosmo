@@ -18,7 +18,7 @@ builder.Configuration
     .AddJsonFile($"localsettings.json", optional: true)
     .AddEnvironmentVariables();
 
-builder.Services.AddCosmoConfiguration(builder.Configuration);
+builder.Services.AddCosmoConfiguration(builder.Configuration, builder.Environment);
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -44,7 +44,10 @@ builder.Services.AddProblemDetails(options =>
 });
 builder.Services.AddExceptionHandler<ValidationExceptionHandler>();
 builder.Services.AddControllers();
-builder.Services.AddOpenApi();
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.ConfigureSwagger();
+}
 builder.Services.AddApplication();
 builder.Services.AddInfrastructure(builder.Configuration);
 
@@ -63,10 +66,36 @@ builder.Services.AddHttpClient<IModelProvider, OllamaModelProvider>((services, c
 });
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+
+    var swagger = app.Services
+    .GetRequiredService<IOptions<SwaggerOptions>>()
+    .Value;
+    var auth0 = app.Services
+        .GetRequiredService<IOptions<Auth0Options>>()
+        .Value;
+
+    app.UseSwaggerUI(options =>
+    {
+        options.SwaggerEndpoint(
+            "/openapi/v1.json",
+            "Cosmo API v1");
+
+        options.RoutePrefix = "swagger";
+
+        options.OAuthClientId(swagger.ClientId);
+        options.OAuthAppName("Cosmo Swagger");
+        options.OAuthUsePkce();
+        options.OAuthScopes("openid", "profile", "email");
+
+        options.OAuthAdditionalQueryStringParams(
+            new Dictionary<string, string>
+            {
+                ["audience"] = auth0.Audience
+            });
+    });
 }
 
 app.UseExceptionHandler(new ExceptionHandlerOptions

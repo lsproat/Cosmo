@@ -32,7 +32,7 @@ public class ChatController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    [HttpPost("conversation/{conversationId}")]
+    [HttpPost("conversation/{conversationId:int}")]
     [RequestSizeLimit(512 * 1024)]
     public async Task<ActionResult<ContinueConversationResult>> ContinueConversation(int conversationId, ContinueConversationRequest request, CancellationToken cancellationToken)
     {
@@ -41,7 +41,7 @@ public class ChatController(ISender sender) : ControllerBase
         return Ok(result);
     }
 
-    [HttpGet("conversation/{conversationId}")]
+    [HttpGet("conversation/{conversationId:int}")]
     public async Task<ActionResult<GetConversationResult>> GetConversation(int conversationId, CancellationToken cancellationToken)
     {
         var query = new GetConversationQuery(conversationId);
